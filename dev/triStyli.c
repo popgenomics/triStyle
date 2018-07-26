@@ -1246,6 +1246,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	double cosexualProportion = 0.0;
 	int nIndividusTotal = 0;
 
+	// frequencies of the different morphes (short, mid, long) and alleles (S, s, M, m) averaged over the WHOLE metapopulation
 	double f_short = 0.0;
 	double f_mid = 0.0;
 	double f_long = 0.0;
@@ -1254,6 +1255,25 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	double f_M = 0.0;
 	double f_m = 0.0;
 
+	// vectors of double of size 'nDemes' containing frequencies of different morphes for each deme
+	double* freq_short_demes = NULL;
+	double* freq_mid_demes = NULL;
+	double* freq_long_demes = NULL;
+	freq_short_demes = malloc(nDemes * sizeof(double));
+	freq_mid_demes = malloc(nDemes * sizeof(double));
+	freq_long_demes = malloc(nDemes * sizeof(double));
+	
+	if( freq_short_demes == NULL || freq_mid_demes == NULL || freq_long_demes == NULL ){
+		exit(0);
+	}
+	
+	for(i=0; i<nDemes; i++){
+		freq_short_demes[i] = 0.0;
+		freq_mid_demes[i] = 0.0;
+		freq_long_demes[i] = 0.0;
+	}
+
+	// file name
 	char nomFichierSortie[200];
 	sprintf(nomFichierSortie, "output_%d.txt", seed);
 	FILE* fichierSortie = NULL;
@@ -1261,7 +1281,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	fichierSortie = fopen(nomFichierSortie, "r");
 	if(fichierSortie == NULL){
 		fichierSortie = fopen(nomFichierSortie, "a");
-		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme\tNtot\tnQuantiLoci\tselfingRate\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tf_short\tf_mid\tf_long\tf_S\tf_s\tf_M\tf_m\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
+		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme\tNtot\tnQuantiLoci\tselfingRate\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S\tf_s\tf_M\tf_m\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
 		fclose(fichierSortie);
 	}else{
 		fclose(fichierSortie);
@@ -1282,9 +1302,18 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 			for(j=0; j<population[i].nIndividus; j++){
 				cosexualProportion += population[i].sex[j]; // sex[j] = 0 if unisexual; sex[j] + 1 if cosexual
 				// morphe
-				if(population[i].morphe[j] == 0){ f_short += 1;} 
-				if(population[i].morphe[j] == 1){ f_mid += 1;} 
-				if(population[i].morphe[j] == 2){ f_long += 1;} 
+				if(population[i].morphe[j] == 0){
+					freq_short_demes[i] += 1.0/population[i].nIndividus;
+					f_short += 1;
+				} 
+				if(population[i].morphe[j] == 1){
+					freq_mid_demes[i] += 1.0/population[i].nIndividus;
+					f_mid += 1;
+				} 
+				if(population[i].morphe[j] == 2){
+					freq_long_demes[i] += 1.0/population[i].nIndividus;
+					f_long += 1;
+				} 
 				
 				// locusS
 				if(population[i].locusS[2*j] == 0){ f_s += 1;}else{ f_S += 1;}
@@ -1343,13 +1372,17 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 //			colonizationModelTMP = "propagulePool";
 		}
 
-		fprintf(fichierSortie, "%d\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem, nIndividusTotal, nQuantiLoci, selfingRate, fecundity, migration, extinction, colonizationModelTMP, recolonization, time, sexualSystem, sexAvantage, seed, f_short, f_mid, f_long, f_S, f_s, f_M, f_m, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
+		fprintf(fichierSortie, "%d\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem, nIndividusTotal, nQuantiLoci, selfingRate, fecundity, migration, extinction, colonizationModelTMP, recolonization, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S, f_s, f_M, f_m, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
 		fclose(fichierSortie);
 	}
+	
+	free(freq_short_demes);
+	free(freq_mid_demes);
+	free(freq_long_demes);
 }
 
 void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
-	printf("%lf %lf %lf %lf %lf %lf\n", f_mig_col[0], f_mig_col[1], f_mig_col[2], f_mig_col[3], f_mig_col[4], f_mig_col[5]);
+	// printf("%lf %lf %lf %lf %lf %lf\n", f_mig_col[0], f_mig_col[1], f_mig_col[2], f_mig_col[3], f_mig_col[4], f_mig_col[5]); // print frequencies of short/mid/long among migrants/colonizers
 	char nomFichierSortie[200];
 	sprintf(nomFichierSortie, "output_%d.txt", seed);
 	FILE* fichierSortie = NULL;
