@@ -6,7 +6,6 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERBOSE 10 // compute statistics every VERBOSE generations
 #define VERSION "26.06.2018"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
@@ -80,7 +79,8 @@ int main(int argc, char *argv[]){
 	const int sexualSystem = atoi(argv[14]);    // 0 = only hermaphrodites; 1 = XY system; 2 = ZW system
 	const double sexAvantage = atof(argv[15]); // avantage confered by the Y or Z chromosome over hermaphrodites
 	const double selfingRate = atof(argv[16]); // probability to have an ovule being fertilized by sperm from the same individual
-	const int seed = atoi(argv[17]);
+	const int verbose = atoi(argv[17]); // frequency at which statistics are written in the output file
+	const int seed = atoi(argv[18]); // seed of the random generator
 
 	// Random generator
         const gsl_rng_type *T;
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]){
 		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, sexAvantage, sexualSystem, selfingRate);
 		
 		//if( i == nGeneration ){
-		if( i%VERBOSE==0 ){
+		if( i%verbose == 0 ){
 			for(j=0; j<5; j++){
 				diff_stats[j] = 0.0; // initialize the vector of genPop statistics to zero
 			}
@@ -177,11 +177,11 @@ int main(int argc, char *argv[]){
 		setFMigColToZero(f_mig_col);
 		replacement(r, population, newPopulation, nDemes, maxIndPerDem, nNtrlLoci, nQuantiLoci, nImmigrants, nProducedSeeds, extinctionStatus, recolonization, i, sexualSystem, colonizationModel, f_mig_col); // replace the parents (population) by the offspring (newPopulation)
 
-		if( i%VERBOSE == 0 ){
+		if( i%verbose == 0 ){
 			statisticsMigrantsColonizers(seed, f_mig_col);
 		}
 	
-		if( i==VERBOSE ){	
+		if( i==verbose ){	
 		//printMorphes(population, nDemes, i);
 		}
 		free(nImmigrants);
@@ -1401,8 +1401,8 @@ void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
 
 
 void checkCommandLine(int argc){
-	if(argc != 18){
-		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s17%s are expected:\n\t\
+	if(argc != 19){
+		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s19%s are expected:\n\t\
 		%s1.%s  Number of demes (>0)\n\t\
 		%s2.%s  Max number of individuals per deme (>0)\n\n\t\
 		%s3.%s  Number of generations (>0)\n\t\
@@ -1419,9 +1419,10 @@ void checkCommandLine(int argc){
 		%s14.%s sexualSystem is equal to 0 if autosomal, equal to 1 if XY and equal to 2 if ZW (USELESS FOR THE MOMENT, SET IT TO 0)\n\t\
 		%s15.%s Sexual effects of heterogametic sex (if equal to 1.5 in XY system, males have a 50 percent advantage to sire available ovules). Required but neglected if sexualSystem == 0 (USELESS FOR THE MOMENT, SET IT TO 1)\n\n\t\
 		%s16.%s Selfing rate of hermaphrodites, fixed over time (in [0-1])\n\n\t\
-		%s17.%s Seed for the random generator (>0)\n\n\
-		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2   0.1 0.1 1   1   0 1   0   123\n\n\
-		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
+		%s17.%s frequency of statistics calculation, all X generations (positive integer)\n\n\t\
+		%s18.%s Seed for the random generator (>0)\n\n\
+		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2   0.1 0.1 1   1   0 1   0   10   123\n\n\
+		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
 	}
