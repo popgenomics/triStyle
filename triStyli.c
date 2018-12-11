@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "26.06.2018"
+#define VERSION "11.12.2018"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -14,8 +14,8 @@
 #define KMAG  "\x1B[31m"
 #define STOP  "\x1B[0m"
 
-//	gcc quantiSex.c -L/usr/local/lib -lgsl -lgslcblas -lm -Wall -Wextra -Wshadow -Werror -O3 -o quantiSex
-//	./quantiSex 100 200 100 10 0.00001 1 0.0001 10 0 0.3 1 0 1 123
+//	gcc triStyli.c -L/usr/local/lib -lgsl -lgslcblas -lm -Wall -Wextra -Wshadow -Werror -O3 -o triStyli
+//	./triStyli 100 200 100 10 0.00001 1 0.0001 10 0 0.3 1 0 1 123
 
 typedef struct Deme Deme;
 struct Deme{
@@ -33,14 +33,14 @@ struct Deme{
 	int* morphe; // 0: short-styled, 1: mid-styled, 2: long-styled
 };
 
-void initializePopulation(gsl_rng *r, Deme* population, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const double fecundity);
+void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const double fecundity, const int initialSituation);
 void libererMemoirePopulation(Deme* population, const int nDemes);
 void afficherPopulation(Deme* population, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const int sexualSystem);
 void configMetapop(gsl_rng* r, Deme* population, const int nDemes, const double migration, const double extinction, int nImmigrants[], int extinctionStatus[], int nProducedSeeds[], const int maxIndPerDem);
 void setToZero(const int nDemes, int nImmigrants[], int extinctionStatus[], int nProducedSeeds[]);
 void setFMigColToZero(double f_mig_col[]);
 void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nProducedSeeds[], const int nNtrlLoci, const int nQuantiLoci, const double fecundity);
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate);
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation);
 void weightedSample(gsl_rng* r, const double* liste, const double* weights, double* target, const int sizeOfListe, const int nTrials);
 void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const int nImmigrants[], int nProducedSeeds[], int extinctionStatus[], const int recolonization, const int generation, const int sexualSystem, const int colonizationModel, double* f_mig_col);
 void writeNindividuals(const Deme* population, const int nDemes, const double extinction, const double migration, const int seed);
@@ -81,7 +81,11 @@ int main(int argc, char *argv[]){
 	const double selfingRate = atof(argv[16]); // probability to have an ovule being fertilized by sperm from the same individual
 	const int verbose = atoi(argv[17]); // frequency at which statistics are written in the output file
 	const int seed = atoi(argv[18]); // seed of the random generator
-
+	
+	const int initialSituation = atoi(argv[19]); // 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
+	const int newAllele = atoi(argv[20]); // 0 = S; 1 = s; 2 = M; 3 = m (this argument is not considered if argument 19 is == 0)
+	const int generationNewAllele = atoi(argv[21]); // generation at which ONE copy of the new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
+	
 	// Random generator
         const gsl_rng_type *T;
         gsl_rng *r;
@@ -105,7 +109,7 @@ int main(int argc, char *argv[]){
 		exit(0);
 	}
 
-	initializePopulation(r, population, nDemes, maxIndPerDem, nNtrlLoci, nQuantiLoci, fecundity);
+	initializePopulation(r, population, nDemes, maxIndPerDem, nNtrlLoci, nQuantiLoci, fecundity, initialSituation);
 
 	// fst
 	double global_fst_cm = 0.0;
@@ -142,7 +146,7 @@ int main(int argc, char *argv[]){
 		
 		initializeNewPopulation(newPopulation, nDemes, maxIndPerDem, nProducedSeeds, nNtrlLoci, nQuantiLoci, fecundity);
 
-		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, sexAvantage, sexualSystem, selfingRate);
+		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, initialSituation);
 		
 		//if( i == nGeneration ){
 		if( i%verbose == 0 ){
@@ -197,7 +201,7 @@ int main(int argc, char *argv[]){
 }
 
 
-void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const double fecundity){
+void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const double fecundity, const int initialSituation){
 	int i = 0;
 	int j = 0;
 	int k = 0;
@@ -243,23 +247,34 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 				population[i].sexChro[2*j + 1] = 0;
 				population[i].sex[j] = 1;
 				
-				if( j%3 == 0 ){ // short : all SsMm at generation 0
-					population[i].locusS[2*j] = 1;
-					population[i].locusS[2*j + 1] = 0;
-					population[i].locusM[2*j] = 1;
-					population[i].locusM[2*j + 1] = 0;
-					population[i].morphe[j] = 0;
+				// 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
+				if( initialSituation == 0 ){
+					if( j%3 == 0 ){ // short : all SsMm at generation 0
+						population[i].locusS[2*j] = 1;
+						population[i].locusS[2*j + 1] = 0;
+						population[i].locusM[2*j] = 1;
+						population[i].locusM[2*j + 1] = 0;
+						population[i].morphe[j] = 0;
+					}
+					
+					if( j%3 == 1 ){ // mid : all ssMm at generation 0
+						population[i].locusS[2*j] = 0;
+						population[i].locusS[2*j + 1] = 0;
+						population[i].locusM[2*j] = 1;
+						population[i].locusM[2*j + 1] = 0;
+						population[i].morphe[j] = 1;
+					}
+					
+					if( j%3 == 2 ){ // long : all ssmm at generation 0
+						population[i].locusS[2*j] = 0;
+						population[i].locusS[2*j + 1] = 0;
+						population[i].locusM[2*j] = 0;
+						population[i].locusM[2*j + 1] = 0;
+						population[i].morphe[j] = 2;
+					}
 				}
 				
-				if( j%3 == 1 ){ // mid : all ssMm at generation 0
-					population[i].locusS[2*j] = 0;
-					population[i].locusS[2*j + 1] = 0;
-					population[i].locusM[2*j] = 1;
-					population[i].locusM[2*j + 1] = 0;
-					population[i].morphe[j] = 1;
-				}
-				
-				if( j%3 == 2 ){ // long : all ssmm at generation 0
+				if( initialSituation == 1 ){ // all are ssmm (long)
 					population[i].locusS[2*j] = 0;
 					population[i].locusS[2*j + 1] = 0;
 					population[i].locusM[2*j] = 0;
@@ -267,6 +282,30 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 					population[i].morphe[j] = 2;
 				}
 			
+				if( initialSituation == 2 ){ // all are ssMM (mid)
+					population[i].locusS[2*j] = 0;
+					population[i].locusS[2*j + 1] = 0;
+					population[i].locusM[2*j] = 1;
+					population[i].locusM[2*j + 1] = 1;
+					population[i].morphe[j] = 1;
+				}
+				
+				if( initialSituation == 3 ){ // all are SSmm (short)
+					population[i].locusS[2*j] = 1;
+					population[i].locusS[2*j + 1] = 1;
+					population[i].locusM[2*j] = 0;
+					population[i].locusM[2*j + 1] = 0;
+					population[i].morphe[j] = 0;
+				}
+				
+				if( initialSituation == 4 ){ // all are SSMM (short)
+					population[i].locusS[2*j] = 1;
+					population[i].locusS[2*j + 1] = 1;
+					population[i].locusM[2*j] = 1;
+					population[i].locusM[2*j + 1] = 1;
+					population[i].morphe[j] = 0;
+				}
+				
 				//printf("%d\n%d\n", population[i].sexChro[2*j], population[i].sexChro[2*j+1]);
             			//population[i].nOffsprings[j] = floor(fecundity * population[i].femaleAllocation[j]) + gsl_ran_binomial(r, (fecundity * population[i].femaleAllocation[j]) - floor(fecundity * population[i].femaleAllocation[j]), 1);	// nOffs = floor(fecundity x femaleAllocation) + 1 according to a random Binomial integer
             			population[i].nOffsprings[j] = gsl_ran_poisson(r, fecundity); // for tristyli project: number of babies is the same for all
@@ -420,7 +459,7 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int ma
 	} // end of the loop along demes
 }
 
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate){
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation){
 	// function returning a new deme after a run of panmixia from the old deme
 	// here: only "deme specific" events are simulated (meiosis + mutation)
 	double currentAllelicEffect = 0.0;	// current allelic effect of a quantitative allele
@@ -447,9 +486,9 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 	
 		for(i=0; i<nDemes; i++){	// start the loop over the nDemes
 
-			for(j=0; j<population[i].nIndividus; j++){
+			//for(j=0; j<population[i].nIndividus; j++){
 //				printf("%d %d %d %d %d\n", population[i].locusS[2*j], population[i].locusS[2*j+1], population[i].locusM[2*j], population[i].locusM[2*j+1], population[i].morphe[j]);
-			}
+			//}
 
 			K = 0;	// #of_individuals in the parental deme.
 			N = 0;	// #of_babies to produce
@@ -472,6 +511,36 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			nMid = 0;
 			nLong = 0;	
 			for(j=0; j<population[i].nIndividus; j++){
+				if( currentGeneration == generationNewAllele && initialSituation >0 ){
+					if( i == 0 && j == 0 ){ // first individual of the first deme
+						if( newAllele == 0 ){
+							population[i].locusS[2*j] = 1;
+						}
+						
+						if( newAllele == 1 ){
+							population[i].locusS[2*j] = 0;
+						}
+						
+						if( newAllele == 2 ){
+							population[i].locusM[2*j] = 1;
+						}
+						
+						if( newAllele == 3 ){
+							population[i].locusM[2*j] = 0;
+						}
+						
+						if( population[i].locusS[2*j] + population[i].locusS[2*j+1] != 0){
+							population[i].morphe[j] = 0;
+						}else{
+							if( population[i].locusM[2*j] + population[i].locusM[2*j+1] == 0){
+								population[i].morphe[j] = 2;
+							}else{
+								population[i].morphe[j] = 1;
+							}
+						}					
+					}
+				}
+				
 				if(population[i].morphe[j] == 0){
 					nShort = nShort + 1;
 				}
@@ -1401,8 +1470,8 @@ void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
 
 
 void checkCommandLine(int argc){
-	if(argc != 19){
-		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s19%s are expected:\n\t\
+	if(argc != 22){
+		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s21%s are expected:\n\t\
 		%s1.%s  Number of demes (>0)\n\t\
 		%s2.%s  Max number of individuals per deme (>0)\n\n\t\
 		%s3.%s  Number of generations (>0)\n\t\
@@ -1420,9 +1489,12 @@ void checkCommandLine(int argc){
 		%s15.%s Sexual effects of heterogametic sex (if equal to 1.5 in XY system, males have a 50 percent advantage to sire available ovules). Required but neglected if sexualSystem == 0 (USELESS FOR THE MOMENT, SET IT TO 1)\n\n\t\
 		%s16.%s Selfing rate of hermaphrodites, fixed over time (in [0-1])\n\n\t\
 		%s17.%s frequency of statistics calculation, all X generations (positive integer)\n\n\t\
-		%s18.%s Seed for the random generator (>0)\n\n\
-		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2   0.1 0.1 1   1   0 1   0   10   123\n\n\
-		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
+		%s18.%s Seed for the random generator (>0)\n\n\t\
+		%s19.%s initial situation is the phenotypic state of the metapopulation at generation 0 (0: freq is 1/3 of each morphes. 1: only ss mm. 2: only ss MM. 3: only SS mm. 4: only SS MM)\n\n\t\
+		%s20.%s New introduced allele in deme 0, individual 0 at generation generationNewAllele (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
+		%s21.%s generation at which ONE copy of the new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\
+		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2   0.1 0.1 1   1   0 1   0   10   123   0 0 2001\n\n\
+		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
 	}
