@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "11.12.2018"
+#define VERSION "17.12.2018"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -40,7 +40,7 @@ void configMetapop(gsl_rng* r, Deme* population, const int nDemes, const double 
 void setToZero(const int nDemes, int nImmigrants[], int extinctionStatus[], int nProducedSeeds[]);
 void setFMigColToZero(double f_mig_col[]);
 void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nProducedSeeds[], const int nNtrlLoci, const int nQuantiLoci, const double fecundity);
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation);
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality);
 void weightedSample(gsl_rng* r, const double* liste, const double* weights, double* target, const int sizeOfListe, const int nTrials);
 void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const int nImmigrants[], int nProducedSeeds[], int extinctionStatus[], const int recolonization, const int generation, const int sexualSystem, const int colonizationModel, double* f_mig_col);
 void writeNindividuals(const Deme* population, const int nDemes, const double extinction, const double migration, const int seed);
@@ -85,6 +85,7 @@ int main(int argc, char *argv[]){
 	const int initialSituation = atoi(argv[19]); // 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
 	const int newAllele = atoi(argv[20]); // 0 = S; 1 = s; 2 = M; 3 = m (this argument is not considered if argument 19 is == 0)
 	const int generationNewAllele = atoi(argv[21]); // generation at which ONE copy of the new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
+	const double homomorphe_penality = atof(argv[22]);
 	
 	// Random generator
         const gsl_rng_type *T;
@@ -146,7 +147,7 @@ int main(int argc, char *argv[]){
 		
 		initializeNewPopulation(newPopulation, nDemes, maxIndPerDem, nProducedSeeds, nNtrlLoci, nQuantiLoci, fecundity);
 
-		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, initialSituation);
+		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, initialSituation, homomorphe_penality);
 		
 		//if( i == nGeneration ){
 		if( i%verbose == 0 ){
@@ -459,7 +460,7 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int ma
 	} // end of the loop along demes
 }
 
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation){
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality){
 	// function returning a new deme after a run of panmixia from the old deme
 	// here: only "deme specific" events are simulated (meiosis + mutation)
 	double currentAllelicEffect = 0.0;	// current allelic effect of a quantitative allele
@@ -615,18 +616,38 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			
 			// get the fathers
 			if( test_polymorphic == 1 ){
+				unsigned int test_homomorphic_cross = 0;
 			// crosses between different morphes if the deme is polymorphic
 				for(j=0; j<N; j++){
 					if( population[i].morphe[mothers[j]] == 0 ){
-						fathers[j] = non_short[ gsl_rng_uniform_int(r, n_non_short ) ];
+						test_homomorphic_cross = 0;
+						test_homomorphic_cross = gsl_ran_binomial(r, (K-n_non_short)*(1-homomorphe_penality)/((K-n_non_short)*(1-homomorphe_penality) + n_non_short), 1);
+						if ( test_homomorphic_cross == 1){
+							fathers[j] = gsl_rng_uniform_int(r, K);
+						}else{
+							fathers[j] = non_short[ gsl_rng_uniform_int(r, n_non_short ) ];
+						}
 					}
 					
 					if( population[i].morphe[mothers[j]] == 1 ){
-						fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
+						test_homomorphic_cross = 0;
+						test_homomorphic_cross = gsl_ran_binomial(r, (K-n_non_mid)*(1-homomorphe_penality)/((K-n_non_mid)*(1-homomorphe_penality) + n_non_mid), 1);
+						if ( test_homomorphic_cross == 1){
+							fathers[j] = gsl_rng_uniform_int(r, K);
+						}else{	
+							fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
+						}
 					}
 					
 					if( population[i].morphe[mothers[j]] == 2 ){
-						fathers[j] = non_long[ gsl_rng_uniform_int(r, n_non_long ) ];
+						test_homomorphic_cross = 0;
+						test_homomorphic_cross = gsl_ran_binomial(r, (K-n_non_long)*(1-homomorphe_penality)/((K-n_non_long)*(1-homomorphe_penality) + n_non_long), 1);
+						if ( test_homomorphic_cross == 1){
+							fathers[j] = gsl_rng_uniform_int(r, K);
+						}else{
+					
+							fathers[j] = non_long[ gsl_rng_uniform_int(r, n_non_long ) ];
+						}
 					}
 					//printf("polymorphic mother %d father %d\n", population[i].morphe[mothers[j]], population[i].morphe[fathers[j]]);
 				}
@@ -1470,7 +1491,7 @@ void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
 
 
 void checkCommandLine(int argc){
-	if(argc != 22){
+	if(argc != 23){
 		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s21%s are expected:\n\t\
 		%s1.%s  Number of demes (>0)\n\t\
 		%s2.%s  Max number of individuals per deme (>0)\n\n\t\
@@ -1492,9 +1513,10 @@ void checkCommandLine(int argc){
 		%s18.%s Seed for the random generator (>0)\n\n\t\
 		%s19.%s initial situation is the phenotypic state of the metapopulation at generation 0 (0: freq is 1/3 of each morphes. 1: only ss mm. 2: only ss MM. 3: only SS mm. 4: only SS MM)\n\n\t\
 		%s20.%s New introduced allele in deme 0, individual 0 at generation generationNewAllele (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
-		%s21.%s generation at which ONE copy of the new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\
+		%s21.%s generation at which ONE copy of the new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\t\
+		%s22.%s Penality against homo-morphic pairing: proba homomorphic pairing when deme is polymorphic = [ n_same * (1-p) ] / [ n_same * (1-p) + n_diff ] (in [0-1])\n\n\
 		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2   0.1 0.1 1   1   0 1   0   10   123   0 0 2001\n\n\
-		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
+		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
 	}
