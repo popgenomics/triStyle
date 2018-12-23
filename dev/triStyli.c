@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "17.12.2018"
+#define VERSION "23.12.2018"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -17,6 +17,12 @@
 //	gcc triStyli.c -L/usr/local/lib -lgsl -lgslcblas -lm -Wall -Wextra -Wshadow -Werror -O3 -o triStyli
 //	./triStyli 100 200 100 10 0.00001 1 0.0001 10 0 0.3 1 0 1 123
 
+// choice of mating partners:
+// 1) all hermaphrodite individuals share the same probability of being sampled as a mother
+// 2) only a proportion 'p' of hermaphrodites is subsampled among all in order to be "putative futur fathers".
+// A number K.p of available males is sampled using a Poisson distribution.
+// These K.p available males are sampled without replacement, and have an individual fitness equal to 1-f_morphe_i (negative frequency selection)
+// To produce N babies, N fathers are sampled among : i) the selected males (K.p) and ii) selected males with compatible phenotypes. All compatible males have the same fitness now.
 typedef struct Deme Deme;
 struct Deme{
 	int nIndividus;
@@ -40,8 +46,9 @@ void configMetapop(gsl_rng* r, Deme* population, const int nDemes, const double 
 void setToZero(const int nDemes, int nImmigrants[], int extinctionStatus[], int nProducedSeeds[]);
 void setFMigColToZero(double f_mig_col[]);
 void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nProducedSeeds[], const int nNtrlLoci, const int nQuantiLoci, const double fecundity);
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality);
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality);
 void weightedSample(gsl_rng* r, const double* liste, const double* weights, double* target, const int sizeOfListe, const int nTrials);
+void weightedSample_without_replacement(gsl_rng* r, const int* liste, const double* weights, int* target, const int sizeOfListe, const int nTrials);
 void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const int nImmigrants[], int nProducedSeeds[], int extinctionStatus[], const int recolonization, const int generation, const int sexualSystem, const int colonizationModel, double* f_mig_col);
 void writeNindividuals(const Deme* population, const int nDemes, const double extinction, const double migration, const int seed);
 void genePop(Deme* population, const int nDemes, const int nNtrlLoci, const int seed, int time);
@@ -72,20 +79,21 @@ int main(int argc, char *argv[]){
 	const int nQuantiLoci = atoi(argv[7]);	// number of quantitative loci
 	const double quantiMutation = atof(argv[8]);	// mutation rate of the quantative loci
 	const double fecundity = atof(argv[9]);	// max number of offspring when femAlloc=100%
-	const double migration = atof(argv[10]);	// immigration rate
-	const double extinction = atof(argv[11]);	// extinction rate
-	const int recolonization = atoi(argv[12]);	// number of recolonizing individuals
-	const int colonizationModel = atoi(argv[13]);	// 0 = migrant pool model 1 = propagule pool model
-	const int sexualSystem = atoi(argv[14]);    // 0 = only hermaphrodites; 1 = XY system; 2 = ZW system
-	const double sexAvantage = atof(argv[15]); // avantage confered by the Y or Z chromosome over hermaphrodites
-	const double selfingRate = atof(argv[16]); // probability to have an ovule being fertilized by sperm from the same individual
-	const int verbose = atoi(argv[17]); // frequency at which statistics are written in the output file
-	const int seed = atoi(argv[18]); // seed of the random generator
+	const double reprodMale = atof(argv[10]); // proportion of individuals reproducing through the male function
+	const double migration = atof(argv[11]);	// immigration rate
+	const double extinction = atof(argv[12]);	// extinction rate
+	const int recolonization = atoi(argv[13]);	// number of recolonizing individuals
+	const int colonizationModel = atoi(argv[14]);	// 0 = migrant pool model 1 = propagule pool model
+	const int sexualSystem = atoi(argv[15]);    // 0 = only hermaphrodites; 1 = XY system; 2 = ZW system
+	const double sexAvantage = atof(argv[16]); // avantage confered by the Y or Z chromosome over hermaphrodites
+	const double selfingRate = atof(argv[17]); // probability to have an ovule being fertilized by sperm from the same individual
+	const int verbose = atoi(argv[18]); // frequency at which statistics are written in the output file
+	const int seed = atoi(argv[19]); // seed of the random generator
 	
-	const int initialSituation = atoi(argv[19]); // 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
-	const int newAllele = atoi(argv[20]); // 0 = S; 1 = s; 2 = M; 3 = m (this argument is not considered if argument 19 is == 0)
-	const int generationNewAllele = atoi(argv[21]); // generation at which ONE copy of the new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
-	const double homomorphe_penality = atof(argv[22]);
+	const int initialSituation = atoi(argv[20]); // 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
+	const int newAllele = atoi(argv[21]); // 0 = S; 1 = s; 2 = M; 3 = m (this argument is not considered if argument 19 is == 0)
+	const int generationNewAllele = atoi(argv[22]); // generation at which ONE copy of the new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
+	const double homomorphe_penality = atof(argv[23]); // penality against homomorphic matings in a polymorphic deme. Proba of homomorphic = [ n_i x (1 - penality)] / [ n - i * (1 - penality) + n_non_i ]
 	
 	// Random generator
         const gsl_rng_type *T;
@@ -147,7 +155,7 @@ int main(int argc, char *argv[]){
 		
 		initializeNewPopulation(newPopulation, nDemes, maxIndPerDem, nProducedSeeds, nNtrlLoci, nQuantiLoci, fecundity);
 
-		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, initialSituation, homomorphe_penality);
+		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, reprodMale, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, initialSituation, homomorphe_penality);
 		
 		//if( i == nGeneration ){
 		if( i%verbose == 0 ){
@@ -460,7 +468,7 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int ma
 	} // end of the loop along demes
 }
 
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality){
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality){
 	// function returning a new deme after a run of panmixia from the old deme
 	// here: only "deme specific" events are simulated (meiosis + mutation)
 	double currentAllelicEffect = 0.0;	// current allelic effect of a quantitative allele
@@ -482,6 +490,7 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 	
 	int K = 0; // #of_individuals in the parental deme.
 	int N = 0; // #of_babies to produce
+	int N_reprodMales = 0; // number of fathers contributing to the next generation because of sexual selection among males
 	
 	int test_polymorphic = 0; // test whether there is only one morphe (=0), or multiple morphes in the deme (=1)
 	
@@ -493,13 +502,45 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 
 			K = 0;	// #of_individuals in the parental deme.
 			N = 0;	// #of_babies to produce
+			N_reprodMales = 0; // number of reproductie males 
+			
+			int* available_males = NULL; // males having won the sexual competition
+			int* paternalIndexes = NULL; // competiting males
 			int* parentalIndexes = NULL; // contain de the parental indexes (i.e:{0, 1, 2, 3, 4} if K == 5)
 			int* mothers = NULL;	// array containing the mothers ID. Ex: {2, 19, 3, 3, 1} means that the first baby has individual#2 as mother, second baby has individual#19 as mother, babies 3 and 4 have individual#3
 			int* fathers = NULL;	// array containing the fathers ID.
-
+			double* fitnesses = NULL; // array containing the phenotypes of individuals
+			
 			K = population[i].nIndividus;	// #of_individuals in the parental deme
 			N = newPopulation[i].nIndividus; 	// #of_produced_seeds by the K parents
-
+			
+			// Vector of all possible males, than can be putatively fathers
+			paternalIndexes = malloc(K * sizeof(int));
+			fitnesses = malloc(K * sizeof(double));
+			if( paternalIndexes == NULL || fitnesses == NULL ){
+				exit(0);
+			}else{
+				for(j=0; j<K; ++j){
+					paternalIndexes[j] = j; // get the list of possible fathers
+					fitnesses[j] = 0.0; // initialization
+				}
+			}
+			
+			// Get the number of reprodMales and draw a list of possible fathers (in available_males)
+			if( reprodMale >= 1.0 ){
+				N_reprodMales = K;
+			}else{
+				N_reprodMales = gsl_ran_poisson(r, reprodMale * K);
+				if( N_reprodMales == 0 ){
+					N_reprodMales = 1;
+				}else{
+					if( N_reprodMales > K ){
+						N_reprodMales = K;
+					}
+				}
+			}
+			
+			// chose the parents
 			parentalIndexes = malloc(K * sizeof(int));
 			mothers = malloc(N * sizeof(int));	// indexes of mothers of the N autochtones within the deme of size newPopulation[i].nIndividus
 			fathers = malloc(N * sizeof(int));
@@ -507,12 +548,10 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			int* non_short = NULL; // indexes of non-short styled individuals
 			int* non_mid = NULL;
 			int* non_long = NULL;
-		
-			nShort = 0;
-			nMid = 0;
-			nLong = 0;	
-			for(j=0; j<population[i].nIndividus; j++){
-				if( currentGeneration == generationNewAllele && initialSituation >0 ){
+			
+			// loop to bring a new allele if needed	
+			if( currentGeneration == generationNewAllele && initialSituation >0 ){ // start the block responsible of the new mutation at S and M loci
+				for(j=0; j<K; j++){
 					if( i == 0 && j == 0 ){ // first individual of the first deme
 						if( newAllele == 0 ){
 							population[i].locusS[2*j] = 1;
@@ -538,10 +577,18 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 							}else{
 								population[i].morphe[j] = 1;
 							}
-						}					
+						}
 					}
 				}
-				
+			} // end of the block responsible of the new mutation at S and M loci
+			
+			// loop to count the number of individuals for each morphe in the parental pop
+			// nShort, nMid, nLong count the number of S, M and L morphes in the deme : among all individuals
+			nShort = 0;
+			nMid = 0;
+			nLong = 0;
+			for(j=0; j<K; ++j){
+				// counting the number of different morphes
 				if(population[i].morphe[j] == 0){
 					nShort = nShort + 1;
 				}
@@ -560,10 +607,77 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			}else{
 				test_polymorphic = 1;
 			}
+			
+			// loop to get the fitnesses depending on the frequency of individual phenotypes
+			for( j=0; j<K; ++j){
+				if( test_polymorphic == 0 ){
+					fitnesses[j] = 1;
+				}else{
+					if( population[i].morphe[j] == 0 ){
+						fitnesses[j] = 1 - nShort / (1.0 * K);
+					}
+					if( population[i].morphe[j] == 1 ){
+						fitnesses[j] = 1 - nMid / (1.0 * K);
+					}
+					if( population[i].morphe[j] == 2 ){
+						fitnesses[j] = 1 - nLong / (1.0 * K);
+					}
+				}
+			}
+
+			// get the reproductive males
+			available_males = malloc(N_reprodMales * sizeof(int));
+			if( available_males == NULL ){
+				exit(0);
+			}else{
+				//gsl_ran_choose(r, available_males, N_reprodMales, paternalIndexes, K, sizeof(int)); // all males have the same proba of being father
+				weightedSample_without_replacement(r, paternalIndexes, fitnesses, available_males, K, N_reprodMales); //
+			}
+		/*	
+			printf("nShort=%d\tnMid=%d\tnLong=%d\n", nShort, nMid, nLong);
+			for( j=0; j<N_reprodMales; ++j){
+				printf("%d\t", available_males[j]);
+			}
+			printf("\n");
+			for( j=0; j<N_reprodMales; ++j){
+				printf("%d\t", population[i].morphe[available_males[j]]);
+			}
+			printf("\n");
+			for( j=0; j<N_reprodMales; ++j){
+				printf("%lf\t", fitnesses[available_males[j]]);
+			}
+			printf("\n");*/
+
+			// nShort, nMid, nLong count the number of S, M and L morphes in the deme : among all available males
+			nShort = 0;
+			nMid = 0;
+			nLong = 0;
+			
+			for( j=0; j<N_reprodMales; ++j){
+				if( population[i].morphe[ available_males[j] ] == 0 ){
+					nShort = nShort + 1;
+				}
 				
-			n_non_short = K - nShort;
-			n_non_mid = K - nMid;
-			n_non_long = K - nLong;
+				if( population[i].morphe[ available_males[j] ] == 1 ){
+					nMid = nMid + 1;
+				}
+				
+				if( population[i].morphe[ available_males[j] ] == 2 ){
+					nLong = nLong + 1;
+				}
+			}
+			
+			// test the floral polymorphism among reproductive males
+			test_polymorphic = 0;
+			if( nShort == N_reprodMales || nMid == N_reprodMales || nLong == N_reprodMales ){
+				test_polymorphic = 0;
+			}else{
+				test_polymorphic = 1;
+			}
+			
+			n_non_short = N_reprodMales - nShort;
+			n_non_mid = N_reprodMales - nMid;
+			n_non_long = N_reprodMales - nLong;
 			non_short = malloc( n_non_short * sizeof(int) );
 			non_mid = malloc( n_non_mid * sizeof(int) );
 			non_long = malloc( n_non_long * sizeof(int) );
@@ -572,58 +686,56 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			if(parentalIndexes == NULL || mothers == NULL || fathers == NULL || non_short == NULL || non_mid == NULL || non_long == NULL){
 				exit(0);
 			}
-			// get the non_short individuals	
+			// get the non_short individuals among reproductive males
 			tmp = 0;
-			for(j=0; j<K; j++){
-				if(population[i].morphe[j] != 0){
-					non_short[tmp] = j;
-					tmp++;
-				}
-			}
-
-			// get the non_mid individuals	
-			tmp = 0;	
-			for(j=0; j<K; j++){
-				if(population[i].morphe[j] != 1){
-					non_mid[tmp] = j;
+			for(j=0; j<N_reprodMales; j++){
+				if(population[i].morphe[ available_males[j] ] != 0){
+					non_short[tmp] = available_males[j];
 					tmp++;
 				}
 			}
 			
-			// get the non_long individuals	
+			// get the non_mid individuals among reproductive males
 			tmp = 0;
-			for(j=0; j<K; j++){
-				if(population[i].morphe[j] != 2){
-					non_long[tmp] = j;
+			for(j=0; j<N_reprodMales; j++){
+				if(population[i].morphe[ available_males[j] ] != 1){
+					non_mid[tmp] = available_males[j];
 					tmp++;
 				}
 			}
+			
+			// get the non_long individuals among reproductive males
+			tmp = 0;
+			for(j=0; j<N_reprodMales; j++){
+				if(population[i].morphe[ available_males[j] ] != 2){
+					non_long[tmp] = available_males[j];
+					tmp++;
+				}
+			}
+			
 			
 			for(j=0; j<K; j++){
 				parentalIndexes[j] = j;
 			}
 			
+			// Sampling the parents
 			for(j=0; j<N; j++){
-				mothers[j] = 0;
+				mothers[j] = gsl_rng_uniform_int(r, K); // get the mothers uniformally over the deme
 				fathers[j] = 0;
 			}
 
-			// Sampling the parents
-			// get the mothers
-			for(j=0; j<N; j++){
-				mothers[j] = gsl_rng_uniform_int(r, K);
-			}
 			
 			// get the fathers
 			if( test_polymorphic == 1 ){
-				unsigned int test_homomorphic_cross = 0;
-			// crosses between different morphes if the deme is polymorphic
+				unsigned int test_homomorphic_cross = 0; // test if a given cross occur among individuals of same morphes
+				// crosses between different morphes if the deme is polymorphic
 				for(j=0; j<N; j++){
 					if( population[i].morphe[mothers[j]] == 0 ){
 						test_homomorphic_cross = 0;
-						test_homomorphic_cross = gsl_ran_binomial(r, (K-n_non_short)*(1-homomorphe_penality)/((K-n_non_short)*(1-homomorphe_penality) + n_non_short), 1);
+						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_penality)/((N_reprodMales-n_non_short)*(1-homomorphe_penality) + n_non_short), 1);
 						if ( test_homomorphic_cross == 1){
-							fathers[j] = gsl_rng_uniform_int(r, K);
+							//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+							fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 						}else{
 							fathers[j] = non_short[ gsl_rng_uniform_int(r, n_non_short ) ];
 						}
@@ -631,9 +743,10 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					
 					if( population[i].morphe[mothers[j]] == 1 ){
 						test_homomorphic_cross = 0;
-						test_homomorphic_cross = gsl_ran_binomial(r, (K-n_non_mid)*(1-homomorphe_penality)/((K-n_non_mid)*(1-homomorphe_penality) + n_non_mid), 1);
+						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_mid)*(1-homomorphe_penality)/((N_reprodMales-n_non_mid)*(1-homomorphe_penality) + n_non_mid), 1);
 						if ( test_homomorphic_cross == 1){
-							fathers[j] = gsl_rng_uniform_int(r, K);
+							//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+							fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 						}else{	
 							fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
 						}
@@ -641,9 +754,10 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					
 					if( population[i].morphe[mothers[j]] == 2 ){
 						test_homomorphic_cross = 0;
-						test_homomorphic_cross = gsl_ran_binomial(r, (K-n_non_long)*(1-homomorphe_penality)/((K-n_non_long)*(1-homomorphe_penality) + n_non_long), 1);
+						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_long)*(1-homomorphe_penality)/((N_reprodMales-n_non_long)*(1-homomorphe_penality) + n_non_long), 1);
 						if ( test_homomorphic_cross == 1){
-							fathers[j] = gsl_rng_uniform_int(r, K);
+							//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+							fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 						}else{
 					
 							fathers[j] = non_long[ gsl_rng_uniform_int(r, n_non_long ) ];
@@ -654,7 +768,7 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			}else{
 			// all individuals share the same probability of 1/N of being the father if the deme is monomorphic
 				for(j=0; j<N; j++){
-					fathers[j] = gsl_rng_uniform_int(r, K);
+					fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 					//printf("monomorphic mother %d father %d\n", population[i].morphe[mothers[j]], population[i].morphe[fathers[j]]);
 				}
 			}
@@ -670,6 +784,20 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					}
 				}
 			}
+			// print parents
+/*			for( j=0; j<N; ++j){
+				printf("%dx%d\t", mothers[j], fathers[j]);
+			}
+			printf("\n");
+			for( j=0; j<N; ++j){
+				printf("%d%d%d%d\t", population[i].locusS[mothers[j]*2], population[i].locusS[mothers[j]*2+1],population[i].locusM[mothers[j]*2], population[i].locusM[mothers[j]*2+1]);
+			}
+			printf("\n");
+			for( j=0; j<N; ++j){
+				printf("%d%d%d%d\t", population[i].locusS[fathers[j]*2], population[i].locusS[fathers[j]*2+1],population[i].locusM[fathers[j]*2], population[i].locusM[fathers[j]*2+1]);
+			}
+			printf("\n");
+*/
 
 			// Meiosis and transmission of gametes
 			int pos = 0;	// position in deme.ntrlLoci (or deme.quantiLoci) of offsprings
@@ -806,7 +934,10 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					}
 				}
 			}
+			free(paternalIndexes);
 			free(parentalIndexes);
+			free(fitnesses);
+			free(available_males);
 			free(mothers);
 			free(fathers);
 			free(non_short);
@@ -1136,6 +1267,39 @@ void weightedSample(gsl_rng* r, const double* liste, const double* weights, doub
 	gsl_permutation_free(p);
 	free(n);
 	free(sampledListe);
+}
+
+void weightedSample_without_replacement(gsl_rng* r, const int* liste, const double* weights, int* target, const int sizeOfListe, const int nTrials){
+	// function that fills the vector 'target' of size 'nTrials' containing the weighted-sampled 'sizeOfListe' elements of the 'liste':
+	// weightedSample(gsl_rng* r, {2, 4, 6, 8, 10}, {1.2, 0.6, 0.3, 0.15, 0.05}, target, 5, 20)
+	// target = {6, 6, 6, 2, 2, 2, 2, 2, 8, 2, 8, 6, 4, 2, 2, 4, 4, 4, 4, 2}
+	// but can also be used for boolean sampling (pile ou face) using:
+	// weightedSample(gsl_rng* r, {0, 1}, {1, 1}, target, 2, 1)
+	int i = 0;
+	double* liste_2 = NULL;
+	double* weights_tmp = NULL;
+	double* target_tmp = NULL;
+	liste_2 = malloc( sizeOfListe * sizeof(double) );
+	weights_tmp = malloc( sizeOfListe * sizeof(double) );
+	target_tmp = malloc( 1 * sizeof(double) );
+	
+	if( liste_2 == NULL || weights_tmp == NULL || target_tmp == NULL ){
+		exit(0);
+	}else{
+		for(i=0; i<sizeOfListe; ++i){
+			liste_2[i] = liste[i];
+			weights_tmp[i] = weights[i];
+		}
+		
+		for(i=0; i<nTrials; ++i){
+			weightedSample(r, liste_2, weights_tmp, target_tmp, sizeOfListe, 1);
+			target[i] = target_tmp[0];
+			weights_tmp[ (int)target_tmp[0] ] = 0.0; // remove the sampled individual from the list by atributing a proba of 0 to be sampled at the next rounds
+
+		}
+		free(weights_tmp);
+		free(target_tmp);
+	}
 }
 
 void libererMemoirePopulation(Deme* population, const int nDemes){
@@ -1491,8 +1655,8 @@ void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
 
 
 void checkCommandLine(int argc){
-	if(argc != 23){
-		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s21%s are expected:\n\t\
+	if(argc != 24){
+		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s23%s are expected:\n\t\
 		%s1.%s  Number of demes (>0)\n\t\
 		%s2.%s  Max number of individuals per deme (>0)\n\n\t\
 		%s3.%s  Number of generations (>0)\n\t\
@@ -1501,22 +1665,23 @@ void checkCommandLine(int argc){
 		%s6.%s  Neutral mutation rate (in [0-1]))\n\t\
 		%s7.%s  Number of quantitative loci (>0; USELESS FOR THE MOMENT, SET IT TO 1)\n\t\
 		%s8.%s  Quantitative mutation rate (in [0-1]; USELESS FOR THE MOMENT, SET IT TO 0)\n\n\t\
-		%s9.%s  Max number of offsprings per hermaphrodite (>0)\n\n\t\
-		%s10.%s Immigration rate (Poisson distributed; >=0)\n\t\
-		%s11.%s Extinction rate (Binomialy distributed; in [0-1])\n\t\
-		%s12.%s Number of individuals recolonizing an extincted deme (>0)\n\n\t\
-		%s13.%s Colonization model, 'migration pool' (=0) or 'propagule pool' (=1) models\n\n\t\
-		%s14.%s sexualSystem is equal to 0 if autosomal, equal to 1 if XY and equal to 2 if ZW (USELESS FOR THE MOMENT, SET IT TO 0)\n\t\
-		%s15.%s Sexual effects of heterogametic sex (if equal to 1.5 in XY system, males have a 50 percent advantage to sire available ovules). Required but neglected if sexualSystem == 0 (USELESS FOR THE MOMENT, SET IT TO 1)\n\n\t\
-		%s16.%s Selfing rate of hermaphrodites, fixed over time (in [0-1])\n\n\t\
-		%s17.%s frequency of statistics calculation, all X generations (positive integer)\n\n\t\
-		%s18.%s Seed for the random generator (>0)\n\n\t\
-		%s19.%s initial situation is the phenotypic state of the metapopulation at generation 0 (0: freq is 1/3 of each morphes. 1: only ss mm. 2: only ss MM. 3: only SS mm. 4: only SS MM)\n\n\t\
-		%s20.%s New introduced allele in deme 0, individual 0 at generation generationNewAllele (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
-		%s21.%s generation at which ONE copy of the new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\t\
-		%s22.%s Penality against homo-morphic pairing: proba homomorphic pairing when deme is polymorphic = [ n_same * (1-p) ] / [ n_same * (1-p) + n_diff ] (in [0-1])\n\n\
-		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2   0.1 0.1 1   1   0 1   0   10   123   0 0 2001\n\n\
-		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
+		%s9.%s  Max number of offsprings per hermaphrodite (>0)\n\t\
+		%s10.%s Proportion of individuals reproducing through the male function (in [0, 1])\n\n\t\
+		%s11.%s Immigration rate (Poisson distributed; >=0)\n\t\
+		%s12.%s Extinction rate (Binomialy distributed; in [0-1])\n\t\
+		%s13.%s Number of individuals recolonizing an extincted deme (>0)\n\n\t\
+		%s14.%s Colonization model, 'migration pool' (=0) or 'propagule pool' (=1) models\n\n\t\
+		%s15.%s sexualSystem is equal to 0 if autosomal, equal to 1 if XY and equal to 2 if ZW (USELESS FOR THE MOMENT, SET IT TO 0)\n\t\
+		%s16.%s Sexual effects of heterogametic sex (if equal to 1.5 in XY system, males have a 50 percent advantage to sire available ovules). Required but neglected if sexualSystem == 0 (USELESS FOR THE MOMENT, SET IT TO 1)\n\n\t\
+		%s17.%s Selfing rate of hermaphrodites, fixed over time (in [0-1])\n\n\t\
+		%s18.%s frequency of statistics calculation, all X generations (positive integer)\n\n\t\
+		%s19.%s Seed for the random generator (>0)\n\n\t\
+		%s20.%s initial situation is the phenotypic state of the metapopulation at generation 0 (0: freq is 1/3 of each morphes. 1: only ss mm. 2: only ss MM. 3: only SS mm. 4: only SS MM)\n\n\t\
+		%s21.%s New introduced allele in deme 0, individual 0 at generation generationNewAllele (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
+		%s22.%s generation at which ONE copy of the new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\t\
+		%s23.%s Penality against homo-morphic pairing: proba homomorphic pairing when deme is polymorphic = [ n_same * (1-p) ] / [ n_same * (1-p) + n_diff ] (in [0-1])\n\n\
+		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2 0.9   0.1 0.1 1   1   0 1   0   10   123   0 0 2001 0\n\n\
+		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
 	}
