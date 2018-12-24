@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "23.12.2018"
+#define VERSION "24.12.2018"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -46,7 +46,7 @@ void configMetapop(gsl_rng* r, Deme* population, const int nDemes, const double 
 void setToZero(const int nDemes, int nImmigrants[], int extinctionStatus[], int nProducedSeeds[]);
 void setFMigColToZero(double f_mig_col[]);
 void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nProducedSeeds[], const int nNtrlLoci, const int nQuantiLoci, const double fecundity);
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality);
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int generationNewAllele2, const int newAllele2, const int initialSituation, const double homomorphe_penality);
 void weightedSample(gsl_rng* r, const double* liste, const double* weights, double* target, const int sizeOfListe, const int nTrials);
 void weightedSample_without_replacement(gsl_rng* r, const int* liste, const double* weights, int* target, const int sizeOfListe, const int nTrials);
 void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int maxIndPerDem, const int nNtrlLoci, const int nQuantiLoci, const int nImmigrants[], int nProducedSeeds[], int extinctionStatus[], const int recolonization, const int generation, const int sexualSystem, const int colonizationModel, double* f_mig_col);
@@ -92,8 +92,10 @@ int main(int argc, char *argv[]){
 	
 	const int initialSituation = atoi(argv[20]); // 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
 	const int newAllele = atoi(argv[21]); // 0 = S; 1 = s; 2 = M; 3 = m (this argument is not considered if argument 19 is == 0)
-	const int generationNewAllele = atoi(argv[22]); // generation at which ONE copy of the new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
-	const double homomorphe_penality = atof(argv[23]); // penality against homomorphic matings in a polymorphic deme. Proba of homomorphic = [ n_i x (1 - penality)] / [ n - i * (1 - penality) + n_non_i ]
+	const int generationNewAllele = atoi(argv[22]); // generation at which ONE copy of the FIRST new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
+	const int newAllele2 = atoi(argv[23]); // 0 = S; 1 = s; 2 = M; 3 = m (this argument is not considered if argument 19 is == 0)
+	const int generationNewAllele2 = atoi(argv[24]); // generation at which ONE copy of the SECOND new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
+	const double homomorphe_penality = atof(argv[25]); // penality against homomorphic matings in a polymorphic deme. Proba of homomorphic = [ n_i x (1 - penality)] / [ n - i * (1 - penality) + n_non_i ]
 	
 	// Random generator
         const gsl_rng_type *T;
@@ -155,7 +157,7 @@ int main(int argc, char *argv[]){
 		
 		initializeNewPopulation(newPopulation, nDemes, maxIndPerDem, nProducedSeeds, nNtrlLoci, nQuantiLoci, fecundity);
 
-		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, reprodMale, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, initialSituation, homomorphe_penality);
+		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, reprodMale, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, generationNewAllele2, newAllele2, initialSituation, homomorphe_penality);
 		
 		//if( i == nGeneration ){
 		if( i%verbose == 0 ){
@@ -468,7 +470,7 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int ma
 	} // end of the loop along demes
 }
 
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int initialSituation, const double homomorphe_penality){
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int generationNewAllele2, const int newAllele2, const int initialSituation, const double homomorphe_penality){
 	// function returning a new deme after a run of panmixia from the old deme
 	// here: only "deme specific" events are simulated (meiosis + mutation)
 	double currentAllelicEffect = 0.0;	// current allelic effect of a quantitative allele
@@ -549,34 +551,69 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			int* non_mid = NULL;
 			int* non_long = NULL;
 			
-			// loop to bring a new allele if needed	
+			// block to bring a first new allele if needed	
 			if( currentGeneration == generationNewAllele && initialSituation >0 ){ // start the block responsible of the new mutation at S and M loci
-				for(j=0; j<K; j++){
-					if( i == 0 && j == 0 ){ // first individual of the first deme
-						if( newAllele == 0 ){
-							population[i].locusS[2*j] = 1;
-						}
-						
-						if( newAllele == 1 ){
-							population[i].locusS[2*j] = 0;
-						}
-						
-						if( newAllele == 2 ){
-							population[i].locusM[2*j] = 1;
-						}
-						
-						if( newAllele == 3 ){
-							population[i].locusM[2*j] = 0;
-						}
-						
-						if( population[i].locusS[2*j] + population[i].locusS[2*j+1] != 0){
-							population[i].morphe[j] = 0;
+				if( i == 0 ){ // in the first deme
+					j = 0;
+					j = gsl_rng_uniform_int( r, population[i].nIndividus);
+					
+					if( newAllele == 0 ){
+						population[i].locusS[2*j] = 1;
+					}
+					
+					if( newAllele == 1 ){
+						population[i].locusS[2*j] = 0;
+					}
+					
+					if( newAllele == 2 ){
+						population[i].locusM[2*j] = 1;
+					}
+					
+					if( newAllele == 3 ){
+						population[i].locusM[2*j] = 0;
+					}
+					
+					if( population[i].locusS[2*j] + population[i].locusS[2*j+1] != 0){
+						population[i].morphe[j] = 0;
+					}else{
+						if( population[i].locusM[2*j] + population[i].locusM[2*j+1] == 0){
+							population[i].morphe[j] = 2;
 						}else{
-							if( population[i].locusM[2*j] + population[i].locusM[2*j+1] == 0){
-								population[i].morphe[j] = 2;
-							}else{
-								population[i].morphe[j] = 1;
-							}
+							population[i].morphe[j] = 1;
+						}
+					}
+				}
+			} // end of the block responsible of the new mutation at S and M loci
+			
+			// block to bring a second new allele if needed	
+			if( currentGeneration == generationNewAllele2 && initialSituation >0 ){ // start the block responsible of the new mutation at S and M loci
+				if( i == 0 ){ // in the first deme
+					j = 0;
+					j = gsl_rng_uniform_int( r, population[i].nIndividus);
+					
+					if( newAllele2 == 0 ){
+						population[i].locusS[2*j] = 1;
+					}
+					
+					if( newAllele2 == 1 ){
+						population[i].locusS[2*j] = 0;
+					}
+					
+					if( newAllele2 == 2 ){
+						population[i].locusM[2*j] = 1;
+					}
+					
+					if( newAllele2 == 3 ){
+						population[i].locusM[2*j] = 0;
+					}
+					
+					if( population[i].locusS[2*j] + population[i].locusS[2*j+1] != 0){
+						population[i].morphe[j] = 0;
+					}else{
+						if( population[i].locusM[2*j] + population[i].locusM[2*j+1] == 0){
+							population[i].morphe[j] = 2;
+						}else{
+							population[i].morphe[j] = 1;
 						}
 					}
 				}
@@ -1655,7 +1692,7 @@ void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
 
 
 void checkCommandLine(int argc){
-	if(argc != 24){
+	if(argc != 26){
 		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s23%s are expected:\n\t\
 		%s1.%s  Number of demes (>0)\n\t\
 		%s2.%s  Max number of individuals per deme (>0)\n\n\t\
@@ -1677,11 +1714,13 @@ void checkCommandLine(int argc){
 		%s18.%s frequency of statistics calculation, all X generations (positive integer)\n\n\t\
 		%s19.%s Seed for the random generator (>0)\n\n\t\
 		%s20.%s initial situation is the phenotypic state of the metapopulation at generation 0 (0: freq is 1/3 of each morphes. 1: only ss mm. 2: only ss MM. 3: only SS mm. 4: only SS MM)\n\n\t\
-		%s21.%s New introduced allele in deme 0, individual 0 at generation generationNewAllele (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
-		%s22.%s generation at which ONE copy of the new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\t\
-		%s23.%s Penality against homo-morphic pairing: proba homomorphic pairing when deme is polymorphic = [ n_same * (1-p) ] / [ n_same * (1-p) + n_diff ] (in [0-1])\n\n\
-		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2 0.9   0.1 0.1 1   1   0 1   0   10   123   0 0 2001 0\n\n\
-		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
+		%s21.%s FIRST newly introduced allele in deme 0 at generation generationNewAllele in a single individual (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
+		%s22.%s generation at which ONE copy of the FIRST new allele is brought into the metapop. This argument is required but not considered if argument 20 is equal to 0.\n\n\t\
+		%s23.%s SECOND newly introduced allele in deme 0 at generation generationNewAllele2 in a single individual (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
+		%s24.%s generation at which ONE copy of the SECOND new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\t\
+		%s25.%s Penality against homo-morphic pairing: proba homomorphic pairing when deme is polymorphic = [ n_same * (1-p) ] / [ n_same * (1-p) + n_diff ] (in [0-1])\n\n\
+		%s\tExample:%s ./triStyli 100 100   2000 500   10 0.00001 1 0   2 0.9   0.1 0.1 1   1   0 1   0   10   123   1 1 500 2 1000 1\n\n\
+		version: %s\n\n\t\tdependencies: \t%s\n\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
 	}
