@@ -781,7 +781,7 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					
 						q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
 						q2 = ( n_tot - n_i  * 1.0) / n_tot;
-						r1 = (n_i * homomorphe_probability * 1.0) / (q1 + q2);
+						r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
 						//
 						
 						test_homomorphic_cross = 0;
