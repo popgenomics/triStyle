@@ -1657,7 +1657,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	fichierSortie = fopen(nomFichierSortie, "r");
 	if(fichierSortie == NULL){
 		fichierSortie = fopen(nomFichierSortie, "a");
-		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S\tf_s\tf_M\tf_m\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
+		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S\tf_s\tf_M\tf_m\tnDemes_Sfixed\tnDemes_Mfixed\tnDemes_Lfixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
 		fclose(fichierSortie);
 	}else{
 		fclose(fichierSortie);
@@ -1673,22 +1673,37 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	
 		double* allocFemale = NULL; // female allocation in the whole metapopulation
 		double* allocFemaleCosexual = NULL; // female allocation of cosexuals only. allocFemale = allocFemaleCosexual if sexualSystem == 0
-
+		
+		int nShort_deme_i = 0;
+		int nMid_deme_i = 0;
+		int nLong_deme_i = 0;
+		int nDemes_shortFixed = 0;
+		int nDemes_midFixed = 0;
+		int nDemes_longFixed = 0;
+		
 		for(i=0; i<nDemes; i++){
+			nShort_deme_i = 0;
+			nMid_deme_i = 0;
+			nLong_deme_i = 0;
 			for(j=0; j<population[i].nIndividus; j++){
 				cosexualProportion += population[i].sex[j]; // sex[j] = 0 if unisexual; sex[j] + 1 if cosexual
 				// morphe
 				if(population[i].morphe[j] == 0){
+					nShort_deme_i += 1;
 					freq_short_demes[i] += 1.0/population[i].nIndividus;
 					f_short += 1;
-				} 
-				if(population[i].morphe[j] == 1){
-					freq_mid_demes[i] += 1.0/population[i].nIndividus;
-					f_mid += 1;
-				} 
-				if(population[i].morphe[j] == 2){
-					freq_long_demes[i] += 1.0/population[i].nIndividus;
-					f_long += 1;
+				}else{ 
+					if(population[i].morphe[j] == 1){
+						nMid_deme_i += 1;
+						freq_mid_demes[i] += 1.0/population[i].nIndividus;
+						f_mid += 1;
+					}else{ 
+						if(population[i].morphe[j] == 2){
+							nLong_deme_i += 1;
+							freq_long_demes[i] += 1.0/population[i].nIndividus;
+							f_long += 1;
+						}
+					}
 				} 
 				
 				// locusS
@@ -1700,6 +1715,9 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 				if(population[i].locusM[2*j + 1] == 0){ f_m += 1;}else{ f_M += 1;}
 				
 			}
+			if( nShort_deme_i == population[i].nIndividus){nDemes_shortFixed += 1;}
+			if( nMid_deme_i == population[i].nIndividus){nDemes_midFixed += 1;}
+			if( nLong_deme_i == population[i].nIndividus){nDemes_longFixed += 1;}
 		}
 		f_short = f_short / (1.0 * nIndividusTotal);
 		f_mid = f_mid / (1.0 * nIndividusTotal);
@@ -1748,7 +1766,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 //			colonizationModelTMP = "propagulePool";
 		}
 
-		fprintf(fichierSortie, "%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nIndividusTotal, nQuantiLoci, selfingRate, homomorphe_probability, fecundity, migration, extinction, colonizationModelTMP, recolonization, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S, f_s, f_M, f_m, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
+		fprintf(fichierSortie, "%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nIndividusTotal, nQuantiLoci, selfingRate, homomorphe_probability, fecundity, migration, extinction, colonizationModelTMP, recolonization, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S, f_s, f_M, f_m, nDemes_shortFixed, nDemes_midFixed, nDemes_longFixed, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
 		fclose(fichierSortie);
 	}
 	
