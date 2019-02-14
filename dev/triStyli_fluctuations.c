@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "16.01.2019"
+#define VERSION "14.02.2019"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -34,6 +34,8 @@ struct Deme{
 	double* maleAllocation; // =(1 - femaleAllocation)
 	int* nOffsprings; // Poisson random
 
+	int* neutralS; // A neutral locus with initial conditions similar to those of locusS
+	int* neutralM; // A neutral locus with initial conditions similar to those of locusM
 	int* locusS; // locus S determining the morphe. Ss (10) or SS (11) --> short morph (0)
 	int* locusM; // locus M determining the morphe. ssMm (00 10) or ssMM (00 11) --> mid-styled morph (1). ssmm (00 00) --> long-styled morph (2)
 	int* morphe; // 0: short-styled, 1: mid-styled, 2: long-styled
@@ -48,14 +50,14 @@ void setNumberIndividualsPerDeme(int nIndividuals[], const int nDemes, const int
 void setNumberIndividualsPerDeme_fluctuation(gsl_rng* r, const int nDemes, int nIndividuals[], const int maxIndPerDem_1, const int maxIndPerDem_2, const double P_transition_12_size, const double P_transition_21_size);
 void setFMigColToZero(double f_mig_col[]);
 void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int nIndividuals[], const int nProducedSeeds[], const int nNtrlLoci, const int nQuantiLoci, const double fecundity);
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int generationNewAllele2, const int newAllele2, const int initialSituation, const double homomorphe_probability, const int freqDepSel);
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int generationNewAllele2, const int newAllele2, const int initialSituation, const double homomorphe_probability, const int freqDepSel, const int sysReprod);
 void weightedSample(gsl_rng* r, const double* liste, const double* weights, double* target, const int sizeOfListe, const int nTrials);
 void weightedSample_without_replacement(gsl_rng* r, const int* liste, const double* weights, int* target, const int sizeOfListe, const int nTrials);
 void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nIndividuals[], const int nNtrlLoci, const int nQuantiLoci, const int nImmigrants[], int nProducedSeeds[], int extinctionStatus[], const int recolonization, const int generation, const int sexualSystem, const int colonizationModel, double* f_mig_col);
 void writeNindividuals(const Deme* population, const int nDemes, const double extinction, const double migration, const int seed);
 void genePop(Deme* population, const int nDemes, const int nNtrlLoci, const int seed, int time);
 void checkCommandLine(int argc);
-void statisticsPopulations(Deme* population, const int nDemes, const int maxIndPerDem_1, const int maxIndPerDem_2, const double P_transition_12_size, const double P_transition_21_size, const int nQuantiLoci, const double fecundity, const double migration, const double extinction, const int recolonization, const int sexualSystem, const double sexAvantage, const int seed, int time, const double selfingRate, const int colonizationModel, const double global_fst_cm, const double global_fst_coal, const double global_gpst, const double global_D, const double global_Fis, const double homomorphe_probability);
+void statisticsPopulations(Deme* population, const int nDemes, const int maxIndPerDem_1, const int maxIndPerDem_2, const double P_transition_12_size, const double P_transition_21_size, const int nQuantiLoci, const double fecundity, const double migration, const double extinction, const int recolonization, const int sexualSystem, const double sexAvantage, const int seed, int time, const double selfingRate, const int colonizationModel, const double global_fst_cm, const double global_fst_coal, const double global_gpst, const double global_D, const double global_Fis, const double homomorphe_probability, const int sysReprod);
 void statisticsMigrantsColonizers(const int seed, const double* f_mig_col);
 double fstMullon(const int maxIndPerDem_1, const double extinction, const int recolonization, const double migration);
 double fstRousset(const int maxIndPerDem_1, const double extinction, const int recolonization, const double migration, const int colonizationModel);
@@ -102,6 +104,7 @@ int main(int argc, char *argv[]){
 	const int generationNewAllele2 = atoi(argv[27]); // generation at which ONE copy of the SECOND new allele is brought into the metapop (this argument is not considered if argument 19 is == 0)
 	const double homomorphe_probability = atof(argv[28]); // probability of homomorphic matings in a polymorphic deme.
 	const int freqDepSel = atoi(argv[29]); // if 0: no biased when sampling the reproductive males; if 1: reproductive males are sampled with a rare advantage
+	const int sysReprod = atoi(argv[30]); // if 0: panmixia; if 1: trisStyle
 	
 	// Random generator
         const gsl_rng_type *T;
@@ -141,7 +144,7 @@ int main(int argc, char *argv[]){
 
 	// Evolution of the metapopulation
 	for(i=0; i<=nGeneration; i++){	// start of the loop 'i' over the generations
-//		printf("%d\n", i);
+		//printf("\n%d\n", i);
 		int* nImmigrants = NULL; // stock the number of received immigrants per deme
 		int* extinctionStatus = NULL;	// per deme: 0 = non-extincted; 1 = extincted
 		int* nProducedSeeds = NULL; // stock the numer of produced seeds per deme
@@ -160,9 +163,9 @@ int main(int argc, char *argv[]){
 		setToZero(nDemes, nImmigrants, extinctionStatus, nProducedSeeds);	// initialize vectors used to configure the new-population
 		setNumberIndividualsPerDeme_fluctuation(r, nDemes, nIndividuals, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size);
 
-		for(j=0; j<nDemes; ++j){
+//		for(j=0; j<nDemes; ++j){
 			//printf("%d\t", nIndividuals[j]);
-		}
+//		}
 //		printf("\n");
 
 		if(i >= nGenerationExtinction){ // extinction starts
@@ -174,7 +177,7 @@ int main(int argc, char *argv[]){
 		initializeNewPopulation(newPopulation, nDemes, nIndividuals, nProducedSeeds, nNtrlLoci, nQuantiLoci, fecundity);
 
 
-		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, reprodMale, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, generationNewAllele2, newAllele2, initialSituation, homomorphe_probability, freqDepSel);
+		panmixie(r, population, newPopulation, nDemes, nNtrlLoci, nQuantiLoci,  ntrlMutation, quantiMutation, fecundity, reprodMale, sexAvantage, sexualSystem, selfingRate, i, generationNewAllele, newAllele, generationNewAllele2, newAllele2, initialSituation, homomorphe_probability, freqDepSel, sysReprod);
 
 		
 		//if( i == nGeneration ){
@@ -188,12 +191,16 @@ int main(int argc, char *argv[]){
 			global_fst_coal = diff_stats[1];
 			global_gpst = diff_stats[2];
 			global_D = diff_stats[3];
-			global_Fis = diff_stats[4];	
-
-			if(i >= nGenerationExtinction){ // extinction starts
-				statisticsPopulations(newPopulation, nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nQuantiLoci, fecundity, migration, extinction, recolonization, sexualSystem, sexAvantage, seed, i, selfingRate, colonizationModel, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, homomorphe_probability);
+			global_Fis = diff_stats[4];
+			
+			if( i==0 ){
+				statisticsPopulations(population, nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nQuantiLoci, fecundity, migration, 0.0, recolonization, sexualSystem, sexAvantage, seed, i, selfingRate, colonizationModel, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, homomorphe_probability, sysReprod);
 			}else{
-				statisticsPopulations(newPopulation, nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nQuantiLoci, fecundity, migration, 0.0, recolonization, sexualSystem, sexAvantage, seed, i, selfingRate, colonizationModel, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, homomorphe_probability);
+				if(i >= nGenerationExtinction){ // extinction starts
+					statisticsPopulations(newPopulation, nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nQuantiLoci, fecundity, migration, extinction, recolonization, sexualSystem, sexAvantage, seed, i, selfingRate, colonizationModel, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, homomorphe_probability, sysReprod);
+				}else{
+					statisticsPopulations(newPopulation, nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nQuantiLoci, fecundity, migration, 0.0, recolonization, sexualSystem, sexAvantage, seed, i, selfingRate, colonizationModel, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, homomorphe_probability, sysReprod);
+				}
 			}
 //			genePop(newPopulation, nDemes, nNtrlLoci, seed, i);
 		}
@@ -214,9 +221,9 @@ int main(int argc, char *argv[]){
 			statisticsMigrantsColonizers(seed, f_mig_col);
 		}
 	
-		if( i==verbose ){	
-		//printMorphes(population, nDemes, i);
-		}
+//		if( i%verbose == 0 ){	
+//		printMorphes(population, nDemes, i);
+//		}
 		free(nImmigrants);
 		free(extinctionStatus);
 		free(nProducedSeeds);
@@ -250,11 +257,13 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 		population[i].maleAllocation = malloc(nIndividuals[i] * sizeof(long));
 		population[i].nOffsprings = malloc(nIndividuals[i] * sizeof(int));
 	
+		population[i].neutralS = malloc(2 * nIndividuals[i] * sizeof(int));  
+		population[i].neutralM = malloc(2 * nIndividuals[i] * sizeof(int)); 
 		population[i].locusS = malloc(2 * nIndividuals[i] * sizeof(int)); // locus S determining the morphe. Ss (10) or SS (11) --> short morph (0)
 		population[i].locusM = malloc(2 * nIndividuals[i] * sizeof(int)); // locus M determining the morphe. ssMm (00 10) or ssMM (00 11) --> mid-styled morph (1). ssmm (00 00) --> long-styled morph (2)
 		population[i].morphe = malloc(nIndividuals[i] * sizeof(int)); // 0: short-styled, 1: mid-styled, 2: long-styled
 		
-		if(population[i].ntrlLoci == NULL || population[i].quantiLoci == NULL || population[i].sexChro == NULL || population[i].sex == NULL || population[i].femaleAllocation == NULL || population[i].maleAllocation == NULL || population[i].nOffsprings == NULL || population[i].locusS == NULL || population[i].locusM == NULL || population[i].morphe == NULL){
+		if(population[i].ntrlLoci == NULL || population[i].quantiLoci == NULL || population[i].sexChro == NULL || population[i].sex == NULL || population[i].femaleAllocation == NULL || population[i].maleAllocation == NULL || population[i].nOffsprings == NULL || population[i].neutralS == NULL || population[i].neutralM == NULL || population[i].locusS == NULL || population[i].locusM == NULL || population[i].morphe == NULL){
 			exit(0);
 		}
 
@@ -280,6 +289,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 				// 0 = 1/3 of each morphes; 1 = ss mm; 2 = ss MM; 3 = SS mm; 4 = SS MM
 				if( initialSituation == 0 ){
 					if( j%3 == 0 ){ // short : all SsMm at generation 0
+						population[i].neutralS[2*j] = 1;
+						population[i].neutralS[2*j + 1] = 0;
+						population[i].neutralM[2*j] = 1;
+						population[i].neutralM[2*j + 1] = 0;
+						
 						population[i].locusS[2*j] = 1;
 						population[i].locusS[2*j + 1] = 0;
 						population[i].locusM[2*j] = 1;
@@ -288,6 +302,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 					}
 					
 					if( j%3 == 1 ){ // mid : all ssMm at generation 0
+						population[i].neutralS[2*j] = 0;
+						population[i].neutralS[2*j + 1] = 0;
+						population[i].neutralM[2*j] = 1;
+						population[i].neutralM[2*j + 1] = 0;
+						
 						population[i].locusS[2*j] = 0;
 						population[i].locusS[2*j + 1] = 0;
 						population[i].locusM[2*j] = 1;
@@ -296,6 +315,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 					}
 					
 					if( j%3 == 2 ){ // long : all ssmm at generation 0
+						population[i].neutralS[2*j] = 0;
+						population[i].neutralS[2*j + 1] = 0;
+						population[i].neutralM[2*j] = 0;
+						population[i].neutralM[2*j + 1] = 0;
+						
 						population[i].locusS[2*j] = 0;
 						population[i].locusS[2*j + 1] = 0;
 						population[i].locusM[2*j] = 0;
@@ -305,6 +329,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 				}
 				
 				if( initialSituation == 1 ){ // all are ssmm (long)
+					population[i].neutralS[2*j] = 0;
+					population[i].neutralS[2*j + 1] = 0;
+					population[i].neutralM[2*j] = 0;
+					population[i].neutralM[2*j + 1] = 0;
+					
 					population[i].locusS[2*j] = 0;
 					population[i].locusS[2*j + 1] = 0;
 					population[i].locusM[2*j] = 0;
@@ -313,6 +342,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 				}
 			
 				if( initialSituation == 2 ){ // all are ssMM (mid)
+					population[i].neutralS[2*j] = 0;
+					population[i].neutralS[2*j + 1] = 0;
+					population[i].neutralM[2*j] = 1;
+					population[i].neutralM[2*j + 1] = 1;
+					
 					population[i].locusS[2*j] = 0;
 					population[i].locusS[2*j + 1] = 0;
 					population[i].locusM[2*j] = 1;
@@ -321,6 +355,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 				}
 				
 				if( initialSituation == 3 ){ // all are SSmm (short)
+					population[i].neutralS[2*j] = 1;
+					population[i].neutralS[2*j + 1] = 1;
+					population[i].neutralM[2*j] = 0;
+					population[i].neutralM[2*j + 1] = 0;
+					
 					population[i].locusS[2*j] = 1;
 					population[i].locusS[2*j + 1] = 1;
 					population[i].locusM[2*j] = 0;
@@ -329,6 +368,11 @@ void initializePopulation(gsl_rng* r, Deme* population, const int nDemes, const 
 				}
 				
 				if( initialSituation == 4 ){ // all are SSMM (short)
+					population[i].neutralS[2*j] = 1;
+					population[i].neutralS[2*j + 1] = 1;
+					population[i].neutralM[2*j] = 1;
+					population[i].neutralM[2*j + 1] = 1;
+					
 					population[i].locusS[2*j] = 1;
 					population[i].locusS[2*j + 1] = 1;
 					population[i].locusM[2*j] = 1;
@@ -471,6 +515,8 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int nI
 		newPopulation[i].femaleAllocation = NULL;
 		newPopulation[i].maleAllocation = NULL;
 		newPopulation[i].nOffsprings = NULL;
+		newPopulation[i].neutralS = NULL;
+		newPopulation[i].neutralM = NULL;
 		newPopulation[i].locusS = NULL;
 		newPopulation[i].locusM = NULL;
 		newPopulation[i].morphe = NULL;
@@ -482,11 +528,13 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int nI
 		newPopulation[i].femaleAllocation = malloc(taille * sizeof(long));
 		newPopulation[i].maleAllocation = malloc(taille * sizeof(long));
 		newPopulation[i].nOffsprings = malloc(taille * sizeof(int));
+		newPopulation[i].neutralS = malloc(2 * taille * sizeof(int));
+		newPopulation[i].neutralM = malloc(2 * taille * sizeof(int));
 		newPopulation[i].locusS = malloc(2 * taille * sizeof(int));
 		newPopulation[i].locusM = malloc(2 * taille * sizeof(int));
 		newPopulation[i].morphe = malloc(taille * sizeof(int));
 
-		if(newPopulation[i].ntrlLoci == NULL || newPopulation[i].quantiLoci == NULL || newPopulation[i].sexChro == NULL || newPopulation[i].sex == NULL || newPopulation[i].femaleAllocation == NULL || newPopulation[i].maleAllocation == NULL || newPopulation[i].nOffsprings == NULL || newPopulation[i].locusS == NULL || newPopulation[i].locusM == NULL || newPopulation[i].morphe == NULL){
+		if(newPopulation[i].ntrlLoci == NULL || newPopulation[i].quantiLoci == NULL || newPopulation[i].sexChro == NULL || newPopulation[i].sex == NULL || newPopulation[i].femaleAllocation == NULL || newPopulation[i].maleAllocation == NULL || newPopulation[i].nOffsprings == NULL || newPopulation[i].neutralS == NULL || newPopulation[i].neutralM == NULL ||  newPopulation[i].locusS == NULL || newPopulation[i].locusM == NULL || newPopulation[i].morphe == NULL){
 			exit(0);
 		}
 
@@ -498,6 +546,11 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int nI
 			newPopulation[i].sexChro[2*j] = 0;
 			newPopulation[i].sexChro[2*j + 1] = 0;
 			newPopulation[i].sex[j] = 0;
+
+			newPopulation[i].neutralS[2*j] = 0;
+			newPopulation[i].neutralS[2*j + 1] = 0;
+			newPopulation[i].neutralM[2*j] = 0;
+			newPopulation[i].neutralM[2*j + 1] = 0;
 
 			newPopulation[i].locusS[2*j] = 0;
 			newPopulation[i].locusS[2*j + 1] = 0;
@@ -520,7 +573,7 @@ void initializeNewPopulation(Deme* newPopulation, const int nDemes, const int nI
 	printf("\n");*/
 }
 
-void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int generationNewAllele2, const int newAllele2, const int initialSituation, const double homomorphe_probability, const int freqDepSel){
+void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDemes, const int nNtrlLoci, const int nQuantiLoci, const double ntrlMutation, const double quantiMutation, const double fecundity, const double reprodMale, const double sexAvantage, const int sexualSystem, const double selfingRate, const int currentGeneration, const int generationNewAllele, const int newAllele, const int generationNewAllele2, const int newAllele2, const int initialSituation, const double homomorphe_probability, const int freqDepSel, const int sysReprod){
 	// function returning a new deme after a run of panmixia from the old deme
 	// here: only "deme specific" events are simulated (meiosis + mutation)
 	double currentAllelicEffect = 0.0;	// current allelic effect of a quantitative allele
@@ -548,9 +601,9 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 	
 		for(i=0; i<nDemes; i++){	// start the loop over the nDemes
 
-			//for(j=0; j<population[i].nIndividus; j++){
+//			for(j=0; j<population[i].nIndividus; j++){
 //				printf("%d %d %d %d %d\n", population[i].locusS[2*j], population[i].locusS[2*j+1], population[i].locusM[2*j], population[i].locusM[2*j+1], population[i].morphe[j]);
-			//}
+//			}
 
 			K = 0;	// #of_individuals in the parental deme.
 			N = 0;	// #of_babies to produce
@@ -608,18 +661,22 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					j = gsl_rng_uniform_int( r, population[i].nIndividus);
 					
 					if( newAllele == 0 ){
+						population[i].neutralS[2*j] = 1;
 						population[i].locusS[2*j] = 1;
 					}
 					
 					if( newAllele == 1 ){
+						population[i].neutralS[2*j] = 0;
 						population[i].locusS[2*j] = 0;
 					}
 					
 					if( newAllele == 2 ){
+						population[i].neutralM[2*j] = 1;
 						population[i].locusM[2*j] = 1;
 					}
 					
 					if( newAllele == 3 ){
+						population[i].neutralM[2*j] = 0;
 						population[i].locusM[2*j] = 0;
 					}
 					
@@ -642,18 +699,22 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					j = gsl_rng_uniform_int( r, population[i].nIndividus);
 					
 					if( newAllele2 == 0 ){
+						population[i].neutralS[2*j] = 1;
 						population[i].locusS[2*j] = 1;
 					}
 					
 					if( newAllele2 == 1 ){
+						population[i].neutralS[2*j] = 0;
 						population[i].locusS[2*j] = 0;
 					}
 					
 					if( newAllele2 == 2 ){
+						population[i].neutralM[2*j] = 1;
 						population[i].locusM[2*j] = 1;
 					}
 					
 					if( newAllele2 == 3 ){
+						population[i].neutralM[2*j] = 0;
 						population[i].locusM[2*j] = 0;
 					}
 					
@@ -720,8 +781,8 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 				//gsl_ran_choose(r, available_males, N_reprodMales, paternalIndexes, K, sizeof(int)); // all males have the same proba of being father
 				weightedSample_without_replacement(r, paternalIndexes, fitnesses, available_males, K, N_reprodMales); //
 			}
-		/*	
-			printf("nShort=%d\tnMid=%d\tnLong=%d\n", nShort, nMid, nLong);
+			
+/*			printf("nShort=%d\tnMid=%d\tnLong=%d\n", nShort, nMid, nLong);
 			for( j=0; j<N_reprodMales; ++j){
 				printf("%d\t", available_males[j]);
 			}
@@ -733,8 +794,8 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			for( j=0; j<N_reprodMales; ++j){
 				printf("%lf\t", fitnesses[available_males[j]]);
 			}
-			printf("\n");*/
-
+			printf("\n");
+*/
 			// nShort, nMid, nLong count the number of S, M and L morphes in the deme : among all available males
 			nShort = 0;
 			nMid = 0;
@@ -813,86 +874,93 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 
 			
 			// get the fathers
-			if( test_polymorphic == 1 ){
-				unsigned int test_homomorphic_cross = 0; // test if a given cross occur among individuals of same morphes
-				int n_i = 0;
-				int n_tot = 0;
-				float q1 = 0.0;
-				float q2 = 0.0;
-				float r1 = 0.0;
-				
-				// crosses between different morphes if the deme is polymorphic
-				for(j=0; j<N; j++){
-					if( population[i].morphe[mothers[j]] == 0 ){
-						//
-						n_i = N_reprodMales - n_non_short;
-						n_tot = N_reprodMales;
+			// const int sysReprod = atoi(argv[30]); // if 0: panmixia; if 1: trisStyle
+			if( sysReprod == 1 ){ // if triStyle system (i.e: mating between different morphes, versus, panmixia
+				if( test_polymorphic == 1 ){
+					unsigned int test_homomorphic_cross = 0; // test if a given cross occur among individuals of same morphes
+					int n_i = 0;
+					int n_tot = 0;
+					float q1 = 0.0;
+					float q2 = 0.0;
+					float r1 = 0.0;
 					
-						q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
-						q2 = ( n_tot - n_i  * 1.0) / n_tot;
-						r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
-						//
+					// crosses between different morphes if the deme is polymorphic
+					for(j=0; j<N; j++){
+						if( population[i].morphe[mothers[j]] == 0 ){
+							//
+							n_i = N_reprodMales - n_non_short;
+							n_tot = N_reprodMales;
 						
-						test_homomorphic_cross = 0;
-//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
-						test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
-						if ( test_homomorphic_cross == 1){
-							//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
-							fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
-						}else{
-							fathers[j] = non_short[ gsl_rng_uniform_int(r, n_non_short ) ];
+							q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
+							q2 = ( n_tot - n_i  * 1.0) / n_tot;
+							r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
+							//
+							
+							test_homomorphic_cross = 0;
+	//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
+							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
+							if ( test_homomorphic_cross == 1){
+								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+							}else{
+								fathers[j] = non_short[ gsl_rng_uniform_int(r, n_non_short ) ];
+							}
 						}
-					}
-					
-					if( population[i].morphe[mothers[j]] == 1 ){
-						//
-						n_i = N_reprodMales - n_non_mid;
-						n_tot = N_reprodMales;
-					
-						q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
-						q2 = ( n_tot - n_i  * 1.0) / n_tot;
-						r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
-						//
 						
-						test_homomorphic_cross = 0;
-//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
-						test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
-						if ( test_homomorphic_cross == 1){
-							//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
-							fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
-						}else{	
-							fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
-						}
-					}
-					
-					if( population[i].morphe[mothers[j]] == 2 ){
-						//
-						n_i = N_reprodMales - n_non_long;
-						n_tot = N_reprodMales;
-					
-						q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
-						q2 = ( n_tot - n_i  * 1.0) / n_tot;
-						r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
-						//
+						if( population[i].morphe[mothers[j]] == 1 ){
+							//
+							n_i = N_reprodMales - n_non_mid;
+							n_tot = N_reprodMales;
 						
-						test_homomorphic_cross = 0;
-//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
-						test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
-						if ( test_homomorphic_cross == 1){
-							//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
-							fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
-						}else{
-					
-							fathers[j] = non_long[ gsl_rng_uniform_int(r, n_non_long ) ];
+							q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
+							q2 = ( n_tot - n_i  * 1.0) / n_tot;
+							r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
+							//
+							
+							test_homomorphic_cross = 0;
+	//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
+							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
+							if ( test_homomorphic_cross == 1){
+								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+							}else{	
+								fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
+							}
 						}
+						
+						if( population[i].morphe[mothers[j]] == 2 ){
+							//
+							n_i = N_reprodMales - n_non_long;
+							n_tot = N_reprodMales;
+						
+							q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
+							q2 = ( n_tot - n_i  * 1.0) / n_tot;
+							r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
+							//
+							
+							test_homomorphic_cross = 0;
+	//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
+							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
+							if ( test_homomorphic_cross == 1){
+								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+							}else{
+						
+								fathers[j] = non_long[ gsl_rng_uniform_int(r, n_non_long ) ];
+							}
+						}
+						//printf("polymorphic mother %d father %d\n", population[i].morphe[mothers[j]], population[i].morphe[fathers[j]]);
 					}
-					//printf("polymorphic mother %d father %d\n", population[i].morphe[mothers[j]], population[i].morphe[fathers[j]]);
+				}else{
+				// all individuals share the same probability of 1/N of being the father if the deme is monomorphic
+					for(j=0; j<N; j++){
+						fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+						//printf("monomorphic mother %d father %d\n", population[i].morphe[mothers[j]], population[i].morphe[fathers[j]]);
+					}
 				}
-			}else{
-			// all individuals share the same probability of 1/N of being the father if the deme is monomorphic
+			}else{ // if panmixia
 				for(j=0; j<N; j++){
-					fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
-					//printf("monomorphic mother %d father %d\n", population[i].morphe[mothers[j]], population[i].morphe[fathers[j]]);
+					fathers[j] = gsl_rng_uniform_int(r, K); // get the fathers uniformally over the deme
 				}
 			}
 			
@@ -955,6 +1023,28 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 					pos += 1;
                 			pos2 = fathers[j]*2 + tmp*2 + gsl_ran_binomial(r, 0.5, 1); // sex chromosome from the father
 		        	        newPopulation[i].sexChro[pos] = population[i].sexChro[pos2];
+				}
+				
+				// transmission of neutralS	
+				for(tmp=0; tmp<1; tmp++){
+					pos = j*2 + tmp*2;
+					pos2 = mothers[j]*2 + tmp*2 + gsl_ran_binomial(r, 0.5, 1); // neutralS from the mother
+					newPopulation[i].neutralS[pos] = population[i].neutralS[pos2];
+					
+					pos += 1;
+					pos2 = fathers[j]*2 + tmp*2 + gsl_ran_binomial(r, 0.5, 1); // neutralS from the father
+					newPopulation[i].neutralS[pos] = population[i].neutralS[pos2];	
+				}
+				
+				// transmission of neutralM
+				for(tmp=0; tmp<1; tmp++){
+					pos = j*2 + tmp*2;
+					pos2 = mothers[j]*2 + tmp*2 + gsl_ran_binomial(r, 0.5, 1); // neutralM from the mother
+					newPopulation[i].neutralM[pos] = population[i].neutralM[pos2];
+					
+					pos += 1;
+					pos2 = fathers[j]*2 + tmp*2 + gsl_ran_binomial(r, 0.5, 1); // neutralM from the father
+					newPopulation[i].neutralM[pos] = population[i].neutralM[pos2];	
 				}
 			
 				// transmission of locusS	
@@ -1127,12 +1217,14 @@ void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nD
 		population[i].femaleAllocation = malloc(taille * sizeof(long));
 		population[i].maleAllocation = malloc(taille * sizeof(long));
 		population[i].nOffsprings = malloc(taille * sizeof(int));
+		population[i].neutralS = malloc(2 * taille * sizeof(int));
+		population[i].neutralM = malloc(2 * taille * sizeof(int));
 		population[i].locusS = malloc(2 * taille * sizeof(int));
 		population[i].locusM = malloc(2 * taille * sizeof(int));
 		population[i].morphe = malloc(taille * sizeof(int));
 
 
-		if(population[i].ntrlLoci == NULL || population[i].quantiLoci == NULL || population[i].sexChro == NULL || population[i].sex == NULL || population[i].femaleAllocation == NULL || population[i].maleAllocation == NULL || population[i].nOffsprings == NULL || population[i].locusS == NULL || population[i].locusM == NULL || population[i].morphe == NULL){
+		if(population[i].ntrlLoci == NULL || population[i].quantiLoci == NULL || population[i].sexChro == NULL || population[i].sex == NULL || population[i].femaleAllocation == NULL || population[i].maleAllocation == NULL || population[i].nOffsprings == NULL || population[i].neutralS == NULL || population[i].neutralM == NULL || population[i].locusS == NULL || population[i].locusM == NULL || population[i].morphe == NULL){
 			exit(0);
 		}
 
@@ -1148,6 +1240,8 @@ void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nD
 
 			for(j=0; j<(2 * (population[i].nIndividus - nImmigrants[i])); j++){
                 		population[i].sexChro[j] = newPopulation[i].sexChro[j];
+                		population[i].neutralS[j] = newPopulation[i].neutralS[j];
+                		population[i].neutralM[j] = newPopulation[i].neutralM[j];
                 		population[i].locusS[j] = newPopulation[i].locusS[j];
                 		population[i].locusM[j] = newPopulation[i].locusM[j];
 			}
@@ -1196,6 +1290,23 @@ void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nD
 					for(k=0; k<2; k++){
 						population[i].sexChro[posReceveur + k] = newPopulation[demeTMP].sexChro[posDonneur +k];
 					}
+					
+					// neutralS
+					posDonneur = 2 * indTMP + 0;
+					posReceveur = (2 * population[i].nIndividus) - (2 * nImmigrants[i]) + 2 * j;
+
+					for(k=0; k<2; k++){
+						population[i].neutralS[posReceveur + k] = newPopulation[demeTMP].neutralS[posDonneur +k];
+					}
+					
+					// neutralM
+					posDonneur = 2 * indTMP + 0;
+					posReceveur = (2 * population[i].nIndividus) - (2 * nImmigrants[i]) + 2 * j;
+
+					for(k=0; k<2; k++){
+						population[i].neutralM[posReceveur + k] = newPopulation[demeTMP].neutralM[posDonneur +k];
+					}
+					
 					
 					// locusS
 					posDonneur = 2 * indTMP + 0;
@@ -1306,6 +1417,18 @@ void replacement(gsl_rng* r, Deme* population, Deme* newPopulation, const int nD
 					population[i].sexChro[2 * j + k] = newPopulation[demeTMP].sexChro[2 * indTMP + k];
 				}
 
+				// neutralS
+				posDonneur = 2 * indTMP + 0;
+				for(k=0; k< 2; k++){
+					population[i].neutralS[2 * j + k] = newPopulation[demeTMP].neutralS[2 * indTMP + k];
+				}
+					
+				// neutralM
+				posDonneur = 2 * indTMP + 0;
+				for(k=0; k< 2; k++){
+					population[i].neutralM[2 * j + k] = newPopulation[demeTMP].neutralM[2 * indTMP + k];
+				}
+				
 				// locusS
 				posDonneur = 2 * indTMP + 0;
 				for(k=0; k< 2; k++){
@@ -1436,6 +1559,8 @@ void libererMemoirePopulation(Deme* population, const int nDemes){
 		free(population[i].femaleAllocation);
 		free(population[i].maleAllocation);
 		free(population[i].nOffsprings);
+		free(population[i].neutralS);
+		free(population[i].neutralM);
 		free(population[i].locusS);
 		free(population[i].locusM);
 		free(population[i].morphe);
@@ -1605,8 +1730,18 @@ void genePop(Deme* population, const int nDemes, const int nNtrlLoci, const int 
 
 }
 
-void statisticsPopulations(Deme* population, const int nDemes, const int maxIndPerDem_1, const int maxIndPerDem_2, const double P_transition_12_size, const double P_transition_21_size, const int nQuantiLoci, const double fecundity, const double migration, const double extinction, const int recolonization, const int sexualSystem, const double sexAvantage, const int seed, int time, const double selfingRate, const int colonizationModel, const double global_fst_cm, const double global_fst_coal, const double global_gpst, const double global_D, const double global_Fis, const double homomorphe_probability){
+void statisticsPopulations(Deme* population, const int nDemes, const int maxIndPerDem_1, const int maxIndPerDem_2, const double P_transition_12_size, const double P_transition_21_size, const int nQuantiLoci, const double fecundity, const double migration, const double extinction, const int recolonization, const int sexualSystem, const double sexAvantage, const int seed, int time, const double selfingRate, const int colonizationModel, const double global_fst_cm, const double global_fst_coal, const double global_gpst, const double global_D, const double global_Fis, const double homomorphe_probability, const int sysReprod){
 	// function that calculates the mean female allocation, its standard deviation and the percentage of cosexuals in the metapopulation
+	char breedingSystem[50];
+	// if 0: panmixia; if 1: trisStyle
+	if( sysReprod == 0 ){
+		sprintf(breedingSystem, "panmixia");
+	}
+	if( sysReprod == 1 ){
+		sprintf(breedingSystem, "heteromorphy");
+	}
+
+
 	// also computes FST_var = var(p)/(1-p) and FST_coal = (Htot - Hs) / Htot
 	int i = 0;
 	int j = 0;
@@ -1626,6 +1761,10 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	double f_short = 0.0;
 	double f_mid = 0.0;
 	double f_long = 0.0;
+	
+	double f_S_neutral = 0.0;
+	double f_M_neutral = 0.0;
+	
 	double f_S = 0.0;
 	double f_s = 0.0;
 	double f_M = 0.0;
@@ -1657,7 +1796,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	fichierSortie = fopen(nomFichierSortie, "r");
 	if(fichierSortie == NULL){
 		fichierSortie = fopen(nomFichierSortie, "a");
-		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S\tf_s\tf_M\tf_m\tnDemes_Sfixed\tnDemes_Mfixed\tnDemes_Lfixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
+		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tmatingSystem\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S_neutral\tf_M_neutral\tf_S\tf_s\tf_M\tf_m\tnDemes_Sfixed\tnDemes_Mfixed\tnDemes_Lfixed\tnDemes_allele_Sneutral_lost\tnDemes_allele_Sneutral_polym\tnDemes_allele_Sneutral_fixed\tnDemes_allele_Mneutral_lost\tnDemes_allele_Mneutral_polym\tnDemes_allele_Mneutral_fixed\tnDemes_allele_S_lost\tnDemes_allele_S_polym\tnDemes_allele_S_fixed\tnDemes_allele_M_lost\tnDemes_allele_M_polym\tnDemes_allele_M_fixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
 		fclose(fichierSortie);
 	}else{
 		fclose(fichierSortie);
@@ -1680,8 +1819,34 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 		int nDemes_shortFixed = 0;
 		int nDemes_midFixed = 0;
 		int nDemes_longFixed = 0;
+	
+		int f_S_neutral_i = 0;
+		int f_S_i = 0;
+		int f_M_neutral_i = 0;
+		int f_M_i = 0;
+	
+		int nDemes_Sneutral_lost = 0;
+		int nDemes_Sneutral_polym = 0;
+		int nDemes_Sneutral_fix = 0;
+		
+		int nDemes_Mneutral_lost = 0;
+		int nDemes_Mneutral_polym = 0;
+		int nDemes_Mneutral_fix = 0;
+	
+		int nDemes_S_lost = 0;
+		int nDemes_S_polym = 0;
+		int nDemes_S_fix = 0;
+		
+		int nDemes_M_lost = 0;
+		int nDemes_M_polym = 0;
+		int nDemes_M_fix = 0;
 		
 		for(i=0; i<nDemes; i++){
+			f_S_neutral_i = 0;
+			f_S_i = 0;
+			f_M_neutral_i = 0;
+			f_M_i = 0;
+	
 			nShort_deme_i = 0;
 			nMid_deme_i = 0;
 			nLong_deme_i = 0;
@@ -1706,22 +1871,69 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 					}
 				} 
 				
+				// neutralS
+				if(population[i].neutralS[2*j] == 1){ f_S_neutral += 1; f_S_neutral_i += 1;}
+				if(population[i].neutralS[2*j + 1] == 1){ f_S_neutral += 1; f_S_neutral_i += 1;}
+
+				// neutralM
+				if(population[i].neutralM[2*j] == 1){ f_M_neutral += 1; f_M_neutral_i += 1;}
+				if(population[i].neutralM[2*j + 1] == 1){ f_M_neutral += 1; f_M_neutral_i += 1;}
+				
 				// locusS
-				if(population[i].locusS[2*j] == 0){ f_s += 1;}else{ f_S += 1;}
-				if(population[i].locusS[2*j + 1] == 0){ f_s += 1;}else{ f_S += 1;}
+				if(population[i].locusS[2*j] == 0){ f_s += 1;}else{ f_S += 1; f_S_i += 1;}
+				if(population[i].locusS[2*j + 1] == 0){ f_s += 1;}else{ f_S += 1; f_S_i += 1;}
 
 				// locusM
-				if(population[i].locusM[2*j] == 0){ f_m += 1;}else{ f_M += 1;}
-				if(population[i].locusM[2*j + 1] == 0){ f_m += 1;}else{ f_M += 1;}
+				if(population[i].locusM[2*j] == 0){ f_m += 1;}else{ f_M += 1; f_M_i += 1;}
+				if(population[i].locusM[2*j + 1] == 0){ f_m += 1;}else{ f_M += 1; f_M_i += 1;}
 				
 			}
 			if( nShort_deme_i == population[i].nIndividus){nDemes_shortFixed += 1;}
 			if( nMid_deme_i == population[i].nIndividus){nDemes_midFixed += 1;}
 			if( nLong_deme_i == population[i].nIndividus){nDemes_longFixed += 1;}
-		}
+			
+			// nDemes Sneutral
+			if( f_S_neutral_i == 2*population[i].nIndividus ){
+				nDemes_Sneutral_fix += 1;
+			}else{
+				if( f_S_neutral_i == 0 ){
+					nDemes_Sneutral_lost += 1;
+				}else{nDemes_Sneutral_polym += 1;}
+			}
+			
+			// nDemes S
+			if( f_S_i == 2*population[i].nIndividus ){
+				nDemes_S_fix += 1;
+			}else{
+				if( f_S_i == 0 ){
+					nDemes_S_lost += 1;
+				}else{nDemes_S_polym += 1;}
+			}
+			
+			// nDemes Mneutral
+			if( f_M_neutral_i == 2*population[i].nIndividus ){
+				nDemes_Mneutral_fix += 1;
+			}else{
+				if( f_M_neutral_i == 0 ){
+					nDemes_Mneutral_lost += 1;
+				}else{nDemes_Mneutral_polym += 1;}
+			}
+			
+			// nDemes M
+			if( f_M_i == 2*population[i].nIndividus ){
+				nDemes_M_fix += 1;
+			}else{
+				if( f_M_i == 0 ){
+					nDemes_M_lost += 1;
+				}else{nDemes_M_polym += 1;}
+			}
+		} // end of loop over demes
+		
 		f_short = f_short / (1.0 * nIndividusTotal);
 		f_mid = f_mid / (1.0 * nIndividusTotal);
 		f_long = f_long / (1.0 * nIndividusTotal);
+		f_S_neutral = f_S_neutral / (2.0 * nIndividusTotal);
+		f_M_neutral = f_M_neutral / (2.0 * nIndividusTotal);
 		f_S = f_S / (2.0 * nIndividusTotal);
 		f_s = f_s / (2.0 * nIndividusTotal);
 		f_M = f_M / (2.0 * nIndividusTotal);
@@ -1766,7 +1978,9 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 //			colonizationModelTMP = "propagulePool";
 		}
 
-		fprintf(fichierSortie, "%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nIndividusTotal, nQuantiLoci, selfingRate, homomorphe_probability, fecundity, migration, extinction, colonizationModelTMP, recolonization, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S, f_s, f_M, f_m, nDemes_shortFixed, nDemes_midFixed, nDemes_longFixed, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
+/*nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S_neutral\tf_M_neutral\tf_S\tf_s\tf_M\tf_m\tnDemes_Sfixed\tnDemes_Mfixed\tnDemes_Lfixed\tnDemes_allele_Sneutral_lost\tnDemes_allele_Sneutral_polym\tnDemes_allele_Sneutral_fixed\tnDemes_allele_Mneutral_lost\tnDemes_allele_Mneutral_polym\tnDemes_allele_Mneutral_fixed\tnDemes_allele_S_lost\tnDemes_allele_S_polym\tnDemes_allele_S_fixed\tnDemes_allele_M_lost\tnDemes_allele_M_polym\tnDemes_allele_M_fixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");*/
+		fprintf(fichierSortie,"%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%s\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nIndividusTotal, nQuantiLoci, selfingRate, homomorphe_probability, fecundity, migration, extinction, colonizationModelTMP, recolonization, breedingSystem, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S_neutral, f_M_neutral, f_S, f_s, f_M, f_m, nDemes_shortFixed, nDemes_midFixed, nDemes_longFixed, nDemes_Sneutral_lost, nDemes_Sneutral_polym, nDemes_Sneutral_fix, nDemes_Mneutral_lost, nDemes_Mneutral_polym, nDemes_Mneutral_fix, nDemes_S_lost, nDemes_S_polym, nDemes_S_fix, nDemes_M_lost, nDemes_M_polym, nDemes_M_fix, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
+//%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf
 		fclose(fichierSortie);
 	}
 	
@@ -1796,7 +2010,7 @@ void statisticsMigrantsColonizers(const int seed, const double* f_mig_col){
 
 
 void checkCommandLine(int argc){
-	if(argc != 30){
+	if(argc != 31){
 		printf("\n%sThe number of provided arguments is not correct.%s\nYou provided %s%d%s argument while %s29%s are expected:\n\t\
 		%s1.%s Number of demes (>0)\n\n\t\
 		%s2.%s Carrying capacity 1 (int) : all demes share this K1 at generation 0\n\t\
@@ -1826,10 +2040,11 @@ void checkCommandLine(int argc){
 		%s26.%s SECOND newly introduced allele in deme 0 at generation generationNewAllele2 in a single individual (0 = S; 1 = s; 2 = M; 3 = m), this argument is not considered if argument 19 is equal to 0.\n\n\t\
 		%s27.%s generation at which ONE copy of the SECOND new allele is brought into the metapop. This argument is required but not considered if argument 19 is equal to 0.\n\n\t\
 		%s28.%s Probability of homo-morphic pairing\n\n\t\
-		%s29.%s 0: all males can be in the pool of reproductive males from which fathers will be sampled (fitness = 1 for all individuals); 1: frequency dependent sampling of a subset of malesfrom which fathers will be sampled (fitness = 1 - morphe_frequency)\n\n\
+		%s29.%s 0: all males can be in the pool of reproductive males from which fathers will be sampled (fitness = 1 for all individuals); 1: frequency dependent sampling of a subset of malesfrom which fathers will be sampled (fitness = 1 - morphe_frequency)\n\n\t\
+		%s30.%s 0: panmixia; if 1: trisStyle\n\n\
 		%s\tExample:%s ./triStyli_fluctu 100   200 20 0.1 0.1   2000 2001   20 0.00001 1 0.00001   2 1   0.5 0 1   1   0 1   0   1   123   0   0   2001   2   2001   0.2   0\n\
 		%s\tExample:%s ./triStyli_fluctu 100   200 20 0.1 0.1   2000 500    20 0.00001 1 0.00001   2 1   0.5 0.3 1   1   0 1   0   1   123   1   0   1000   2   1500   0.2   0\n\
-		version: %s\n\t\tdependencies: \t%s\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, KRED, STOP, VERSION, DEPENDENCY);
+		version: %s\n\t\tdependencies: \t%s\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
 	}
