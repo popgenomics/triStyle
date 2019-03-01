@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "14.02.2019"
+#define VERSION "01.03.2019"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -1796,7 +1796,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 	fichierSortie = fopen(nomFichierSortie, "r");
 	if(fichierSortie == NULL){
 		fichierSortie = fopen(nomFichierSortie, "a");
-		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tmatingSystem\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S_neutral\tf_M_neutral\tf_S\tf_s\tf_M\tf_m\tnDemes_Sfixed\tnDemes_Mfixed\tnDemes_Lfixed\tnDemes_allele_Sneutral_lost\tnDemes_allele_Sneutral_polym\tnDemes_allele_Sneutral_fixed\tnDemes_allele_Mneutral_lost\tnDemes_allele_Mneutral_polym\tnDemes_allele_Mneutral_fixed\tnDemes_allele_S_lost\tnDemes_allele_S_polym\tnDemes_allele_S_fixed\tnDemes_allele_M_lost\tnDemes_allele_M_polym\tnDemes_allele_M_fixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
+		fprintf(fichierSortie, "nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tmatingSystem\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S_neutral\tf_M_neutral\tf_S\tf_s\tf_M\tf_m\tnDemes_shortMidLong_polymorphism\tnDemes_short_lostOnly\tnDemes_mid_lostOnly\tnDemes_long_lostOnly\tnDemes_short_fixed\tnDemes_mid_fixed\tnDemes_long_fixed\tnDemes_allele_Sneutral_lost\tnDemes_allele_Sneutral_polym\tnDemes_allele_Sneutral_fixed\tnDemes_allele_Mneutral_lost\tnDemes_allele_Mneutral_polym\tnDemes_allele_Mneutral_fixed\tnDemes_allele_S_lost\tnDemes_allele_S_polym\tnDemes_allele_S_fixed\tnDemes_allele_M_lost\tnDemes_allele_M_polym\tnDemes_allele_M_fixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");
 		fclose(fichierSortie);
 	}else{
 		fclose(fichierSortie);
@@ -1816,9 +1816,13 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 		int nShort_deme_i = 0;
 		int nMid_deme_i = 0;
 		int nLong_deme_i = 0;
-		int nDemes_shortFixed = 0;
-		int nDemes_midFixed = 0;
-		int nDemes_longFixed = 0;
+		int nDemes_shortMidLong_polymorphism = 0;
+		int nDemes_short_lostOnly = 0;
+		int nDemes_mid_lostOnly = 0;
+		int nDemes_long_lostOnly = 0;
+		int nDemes_short_fixed = 0;
+		int nDemes_mid_fixed = 0;
+		int nDemes_long_fixed = 0;
 	
 		int f_S_neutral_i = 0;
 		int f_S_i = 0;
@@ -1871,6 +1875,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 					}
 				} 
 				
+			
 				// neutralS
 				if(population[i].neutralS[2*j] == 1){ f_S_neutral += 1; f_S_neutral_i += 1;}
 				if(population[i].neutralS[2*j + 1] == 1){ f_S_neutral += 1; f_S_neutral_i += 1;}
@@ -1886,12 +1891,43 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 				// locusM
 				if(population[i].locusM[2*j] == 0){ f_m += 1;}else{ f_M += 1; f_M_i += 1;}
 				if(population[i].locusM[2*j + 1] == 0){ f_m += 1;}else{ f_M += 1; f_M_i += 1;}
-				
+				}
+			// nDemes morphe
+			if( nShort_deme_i == population[i].nIndividus ){
+				// f_short == 1
+				nDemes_short_fixed++; // 1/0/0
+			}else{
+				if( nShort_deme_i == 0 ){
+					// f_short == 0
+					if( nMid_deme_i == population[i].nIndividus ){
+						// f_mid == 1
+						nDemes_mid_fixed++; // 0/1/0
+					}else{
+						if( nMid_deme_i == 0 ){
+							// f_mid == 0
+							nDemes_long_fixed++; // 0/0/1
+						}else{
+							// f_mid in ]0, 1[
+							nDemes_short_lostOnly++; // 0/x/x
+						}
+					}
+				}else{
+					// f_short in ]0, 1[
+					if( nMid_deme_i == 0 ){
+						// f_mid == 0
+						nDemes_mid_lostOnly++; // x/0/x
+					}else{
+						// f_mid in ]0, 1[
+						if( nLong_deme_i == 0 ){
+							// f_long == 0
+							nDemes_long_lostOnly++; // x/x/0
+						}else{
+							nDemes_shortMidLong_polymorphism++; // x/x/x
+						}
+					}
+				}
 			}
-			if( nShort_deme_i == population[i].nIndividus){nDemes_shortFixed += 1;}
-			if( nMid_deme_i == population[i].nIndividus){nDemes_midFixed += 1;}
-			if( nLong_deme_i == population[i].nIndividus){nDemes_longFixed += 1;}
-			
+
 			// nDemes Sneutral
 			if( f_S_neutral_i == 2*population[i].nIndividus ){
 				nDemes_Sneutral_fix += 1;
@@ -1979,7 +2015,7 @@ void statisticsPopulations(Deme* population, const int nDemes, const int maxIndP
 		}
 
 /*nDemes\tnIndMaxPerDeme_1\tIndMaxPerDeme_2\tP_fluctuation_K1_K2\tP_fluctuation_K2_k1\tNtot\tnQuantiLoci\tselfingRate\tproba_homomorphic_pairing\tfecundity\tmigRate\textRate\tcolonizationModel\trecolonization\tatGeneration\tsexSystem\tsexAvantage\tseed\tavg_f_short_metapop\tsd_f_short_demes\tavg_f_mid_metapop\tsd_f_mid_demes\tavg_f_long_metapop\tsd_f_long_demes\tf_S_neutral\tf_M_neutral\tf_S\tf_s\tf_M\tf_m\tnDemes_Sfixed\tnDemes_Mfixed\tnDemes_Lfixed\tnDemes_allele_Sneutral_lost\tnDemes_allele_Sneutral_polym\tnDemes_allele_Sneutral_fixed\tnDemes_allele_Mneutral_lost\tnDemes_allele_Mneutral_polym\tnDemes_allele_Mneutral_fixed\tnDemes_allele_S_lost\tnDemes_allele_S_polym\tnDemes_allele_S_fixed\tnDemes_allele_M_lost\tnDemes_allele_M_polym\tnDemes_allele_M_fixed\tmeanFemAlloc\tsdFemAlloc\tmeanFemAllocCosexual\tsdFemAllocCosexual\tcosexualProportion\tobsFST_var\tobsFST_coal\tobsGST_p\tobsJostD\tobsFIS\texpFST_Nmax\texpFST_Nobs\texpFST_Rousset_Nmax\tf_mig_short\tf_mig_mid\tf_mig_long\tf_col_short\tf_col_mid\tf_col_long\n");*/
-		fprintf(fichierSortie,"%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%s\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nIndividusTotal, nQuantiLoci, selfingRate, homomorphe_probability, fecundity, migration, extinction, colonizationModelTMP, recolonization, breedingSystem, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S_neutral, f_M_neutral, f_S, f_s, f_M, f_m, nDemes_shortFixed, nDemes_midFixed, nDemes_longFixed, nDemes_Sneutral_lost, nDemes_Sneutral_polym, nDemes_Sneutral_fix, nDemes_Mneutral_lost, nDemes_Mneutral_polym, nDemes_Mneutral_fix, nDemes_S_lost, nDemes_S_polym, nDemes_S_fix, nDemes_M_lost, nDemes_M_polym, nDemes_M_fix, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
+		fprintf(fichierSortie,"%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%s\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t", nDemes, maxIndPerDem_1, maxIndPerDem_2, P_transition_12_size, P_transition_21_size, nIndividusTotal, nQuantiLoci, selfingRate, homomorphe_probability, fecundity, migration, extinction, colonizationModelTMP, recolonization, breedingSystem, time, sexualSystem, sexAvantage, seed, f_short, gsl_stats_sd(freq_short_demes, 1, nDemes), f_mid, gsl_stats_sd(freq_mid_demes, 1, nDemes), f_long, gsl_stats_sd(freq_long_demes, 1, nDemes), f_S_neutral, f_M_neutral, f_S, f_s, f_M, f_m, nDemes_shortMidLong_polymorphism, nDemes_short_lostOnly, nDemes_mid_lostOnly, nDemes_long_lostOnly, nDemes_short_fixed, nDemes_mid_fixed, nDemes_long_fixed, nDemes_Sneutral_lost, nDemes_Sneutral_polym, nDemes_Sneutral_fix, nDemes_Mneutral_lost, nDemes_Mneutral_polym, nDemes_Mneutral_fix, nDemes_S_lost, nDemes_S_polym, nDemes_S_fix, nDemes_M_lost, nDemes_M_polym, nDemes_M_fix, meanAllocFemale, sdAllocFemale, meanAllocFemaleCosexual, sdAllocFemaleCosexual, cosexualProportion, global_fst_cm, global_fst_coal, global_gpst, global_D, global_Fis, fstValue, fstValueDensity, fstRoussetValue);
 //%d\t%d\t%d\t%lf\t%lf\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%s\t%d\t%d\t%d\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf
 		fclose(fichierSortie);
 	}
