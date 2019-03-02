@@ -117,7 +117,7 @@ int main(int argc, char *argv[]){
 
 	// array of statistics summaryzing the genetic differentiation
 	double* diff_stats = NULL;
-	diff_stats = malloc(4 * sizeof(double));
+	diff_stats = malloc(5 * sizeof(double));
 	if( diff_stats == NULL){
 		exit(0);
 	}	
@@ -231,9 +231,11 @@ int main(int argc, char *argv[]){
 		free(newPopulation);
 		free(f_mig_col);
 	}	// end of the loop 'i' over the generations
+	gsl_rng_free (r);
 	libererMemoirePopulation(population, nDemes);
 	free(population);
 	free(nIndividuals);
+	free(diff_stats);
 	return(0);
 }
 
@@ -1545,6 +1547,7 @@ void weightedSample_without_replacement(gsl_rng* r, const int* liste, const doub
 		}
 		free(weights_tmp);
 		free(target_tmp);
+		free(liste_2);
 	}
 }
 
