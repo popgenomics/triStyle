@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "02.03.2019"
+#define VERSION "11.03.2019"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -14,7 +14,7 @@
 #define KMAG  "\x1B[31m"
 #define STOP  "\x1B[0m"
 
-//	gcc triStyli.c -L/usr/local/lib -lgsl -lgslcblas -lm -Wall -Wextra -Wshadow -Werror -O3 -o triStyli
+//	gcc triStyli_fluctuations.c -L/usr/local/lib -lgsl -lgslcblas -lm -Wall -Wextra -Wshadow -Werror -O3 -o triStyli
 //	./triStyli 100 200 100 10 0.00001 1 0.0001 10 0 0.3 1 0 1 123
 
 // choice of mating partners:
@@ -879,29 +879,20 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			// const int sysReprod = atoi(argv[30]); // if 0: panmixia; if 1: trisStyle
 			if( sysReprod == 1 ){ // if triStyle system (i.e: mating between different morphes, versus, panmixia
 				if( test_polymorphic == 1 ){
-					unsigned int test_homomorphic_cross = 0; // test if a given cross occur among individuals of same morphes
+/*					unsigned int test_homomorphic_cross = 0; // test if a given cross occur among individuals of same morphes
 					int n_i = 0;
 					int n_tot = 0;
 					float q1 = 0.0;
 					float q2 = 0.0;
 					float r1 = 0.0;
-					
+*/
+					unsigned int test_panmixy = 0;					
 					// crosses between different morphes if the deme is polymorphic
 					for(j=0; j<N; j++){
 						if( population[i].morphe[mothers[j]] == 0 ){
-							//
-							n_i = N_reprodMales - n_non_short;
-							n_tot = N_reprodMales;
-						
-							q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
-							q2 = ( n_tot - n_i  * 1.0) / n_tot;
-							r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
-							//
-							
-							test_homomorphic_cross = 0;
-	//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
-							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
-							if ( test_homomorphic_cross == 1){
+							test_panmixy = 0;
+							test_panmixy = gsl_ran_binomial(r, homomorphe_probability, 1);
+							if ( test_panmixy == 1){
 								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
 								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 							}else{
@@ -910,20 +901,9 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 						}
 						
 						if( population[i].morphe[mothers[j]] == 1 ){
-							//
-							n_i = N_reprodMales - n_non_mid;
-							n_tot = N_reprodMales;
-						
-							q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
-							q2 = ( n_tot - n_i  * 1.0) / n_tot;
-							r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
-							//
-							
-							test_homomorphic_cross = 0;
-	//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
-							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
-							if ( test_homomorphic_cross == 1){
-								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+							test_panmixy = 0;
+							test_panmixy = gsl_ran_binomial(r, homomorphe_probability, 1);
+							if ( test_panmixy == 1){
 								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 							}else{	
 								fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
@@ -931,20 +911,9 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 						}
 						
 						if( population[i].morphe[mothers[j]] == 2 ){
-							//
-							n_i = N_reprodMales - n_non_long;
-							n_tot = N_reprodMales;
-						
-							q1 = ( n_i * homomorphe_probability * 1.0) / n_tot;
-							q2 = ( n_tot - n_i  * 1.0) / n_tot;
-							r1 = (n_i * homomorphe_probability * 1.0) / n_tot / (q1 + q2);
-							//
-							
-							test_homomorphic_cross = 0;
-	//						test_homomorphic_cross = gsl_ran_binomial(r, (N_reprodMales-n_non_short)*(1-homomorphe_probability)/((N_reprodMales-n_non_short) + n_non_short), 1);
-							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
-							if ( test_homomorphic_cross == 1){
-								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
+							test_panmixy = 0;
+							test_panmixy = gsl_ran_binomial(r, homomorphe_probability, 1);
+							if ( test_panmixy == 1){
 								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
 							}else{
 						
