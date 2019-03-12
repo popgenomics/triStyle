@@ -6,7 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_permutation.h>
-#define VERSION "02.03.2019"
+#define VERSION "01.03.2019"
 #define DEPENDENCY "None\n"
 #define MAX_NUMBER_OF_INITIAL_NTRL_ALLELES 999	// number of segregating alleles when generating the first parental population
 #define RANGE 0.1	// value in [0;1] to modify the current allelic effect between [(1-RANGE) x current_value ; (1+RANGE) * current_value].
@@ -655,6 +655,9 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			int* non_short = NULL; // indexes of non-short styled individuals
 			int* non_mid = NULL;
 			int* non_long = NULL;
+			int* short_individuals = NULL; // indexes of short styled individuals
+			int* mid_individuals = NULL;
+			int* long_individuals = NULL;
 			
 			// block to bring a first new allele if needed	
 			if( currentGeneration == generationNewAllele && initialSituation >0 ){ // start the block responsible of the new mutation at S and M loci
@@ -831,11 +834,42 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			non_short = malloc( n_non_short * sizeof(int) );
 			non_mid = malloc( n_non_mid * sizeof(int) );
 			non_long = malloc( n_non_long * sizeof(int) );
+			short_individuals = malloc( nShort * sizeof(int) );
+			mid_individuals = malloc( nMid * sizeof(int) );
+			long_individuals = malloc( nLong * sizeof(int) );
 		
 				
-			if(parentalIndexes == NULL || mothers == NULL || fathers == NULL || non_short == NULL || non_mid == NULL || non_long == NULL){
+			if(parentalIndexes == NULL || mothers == NULL || fathers == NULL || non_short == NULL || non_mid == NULL || non_long == NULL || short_individuals == NULL || mid_individuals == NULL || long_individuals == NULL){
 				exit(0);
 			}
+			// get the short individuals among reproductive males
+			tmp = 0;
+			for(j=0; j<N_reprodMales; j++){
+				if(population[i].morphe[ available_males[j] ] == 0){
+					short_individuals[tmp] = available_males[j];
+					tmp++;
+				}
+			}
+			
+			// get the mid individuals among reproductive males
+			tmp = 0;
+			for(j=0; j<N_reprodMales; j++){
+				if(population[i].morphe[ available_males[j] ] == 1){
+					mid_individuals[tmp] = available_males[j];
+					tmp++;
+				}
+			}
+			
+			// get the long individuals among reproductive males
+			tmp = 0;
+			for(j=0; j<N_reprodMales; j++){
+				if(population[i].morphe[ available_males[j] ] == 2){
+					long_individuals[tmp] = available_males[j];
+					tmp++;
+				}
+			}
+			
+			
 			// get the non_short individuals among reproductive males
 			tmp = 0;
 			for(j=0; j<N_reprodMales; j++){
@@ -903,7 +937,7 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
 							if ( test_homomorphic_cross == 1){
 								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
-								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+								fathers[j] = short_individuals[ gsl_rng_uniform_int(r, nShort) ];
 							}else{
 								fathers[j] = non_short[ gsl_rng_uniform_int(r, n_non_short ) ];
 							}
@@ -924,7 +958,7 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
 							if ( test_homomorphic_cross == 1){
 								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
-								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+								fathers[j] = mid_individuals[ gsl_rng_uniform_int(r, nMid) ];
 							}else{	
 								fathers[j] = non_mid[ gsl_rng_uniform_int(r, n_non_mid ) ];
 							}
@@ -945,7 +979,7 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 							test_homomorphic_cross = gsl_ran_binomial(r, r1, 1);
 							if ( test_homomorphic_cross == 1){
 								//fathers[j] = gsl_rng_uniform_int(r, N_reprodMales);
-								fathers[j] = available_males[ gsl_rng_uniform_int(r, N_reprodMales) ];
+								fathers[j] = long_individuals[ gsl_rng_uniform_int(r, nLong) ];
 							}else{
 						
 								fathers[j] = non_long[ gsl_rng_uniform_int(r, n_non_long ) ];
@@ -1158,6 +1192,9 @@ void panmixie(gsl_rng* r, Deme* population, Deme* newPopulation, const int nDeme
 			free(non_short);
 			free(non_mid);
 			free(non_long);
+			free(short_individuals);
+			free(mid_individuals);
+			free(long_individuals);
 	}	// end of loop over the nDemes
 }
 
@@ -2081,8 +2118,8 @@ void checkCommandLine(int argc){
 		%s28.%s Probability of homo-morphic pairing\n\n\t\
 		%s29.%s 0: all males can be in the pool of reproductive males from which fathers will be sampled (fitness = 1 for all individuals); 1: frequency dependent sampling of a subset of malesfrom which fathers will be sampled (fitness = 1 - morphe_frequency)\n\n\t\
 		%s30.%s 0: panmixia; if 1: trisStyle\n\n\
-		%s\tExample:%s ./triStyli_fluctu 100   200 20 0.1 0.1   2000 2001   20 0.00001 1 0.00001   2 1   0.5 0 1   1   0 1   0   1   123   0   0   2001   2   2001   0.2   0   1\n\
-		%s\tExample:%s ./triStyli_fluctu 100   200 20 0.1 0.1   2000 500    20 0.00001 1 0.00001   2 1   0.5 0.3 1   1   0 1   0   1   123   1   0   1000   2   1500   0.2   0   1\n\
+		%s\tExample:%s ./triStyli_fluctu 100   200 20 0.1 0.1   2000 2001   20 0.00001 1 0.00001   2 1   0.5 0 1   1   0 1   0   1   123   0   0   2001   2   2001   0.2   0\n\
+		%s\tExample:%s ./triStyli_fluctu 100   200 20 0.1 0.1   2000 500    20 0.00001 1 0.00001   2 1   0.5 0.3 1   1   0 1   0   1   123   1   0   1000   2   1500   0.2   0\n\
 		version: %s\n\t\tdependencies: \t%s\n", KRED, STOP, KRED, argc-1, STOP, KRED, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KMAG, STOP, KRED, STOP, KRED, STOP, VERSION, DEPENDENCY);
 
 		exit(0);
