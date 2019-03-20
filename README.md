@@ -6,7 +6,7 @@ TriStyle
    * [Example](#example)
 
 # Generalities  
-trisStyle is a metapopulation simulator to study the evolution of a heterostyle reproduction system and neutral unlinked loci.  
+trisStyle is a fast metapopulation simulator coded in C-language in order to study the evolution of a heterostyle reproduction system and neutral unlinked loci.  
 Are allowed:  
 	Different models of migration are allowed (migrant _*versus*_ propagule pool).  
 	Different initial situations (isoplethy, monomorphic for short, mid or long morph).  
