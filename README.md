@@ -45,6 +45,6 @@ The arguments are :
 
 
 
-Exemple of command:  
+__Example of command:__  
 ./triStyli_fluctu 100   200 20 0.1 0.1   2000 2001   20 0.00001 1 0.00001   2 1   0.5 0 1   1   0 1   0   1   123   0   0   2001   2   2001   0.2   0 1  
 
