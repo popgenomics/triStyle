@@ -8,12 +8,12 @@ TriStyle
 # Generalities  
 trisStyle is a fast metapopulation simulator coded in C-language in order to study the evolution of a heterostyle reproduction system and neutral unlinked loci.  
 Are allowed:  
-	Different models of migration (migrant _*versus*_ propagule pool).  
-	Different initial situations (isoplethy, monomorphic for short, mid or long morph).  
-	Different migration rates, extinction rates and number of recolonizers.  
-	Different selfing rates.  
-	Different probobalities for homomorphic pairing.  
-	Temporal fluctuations of carrying capacities by specifying the carrying capacities K1, K2 and the probabilities of transition from K1 to K2, and from K2 to K1.  
+	* Different models of migration (migrant _*versus*_ propagule pool).  
+	* Different initial situations (isoplethy, monomorphic for short, mid or long morph).  
+	* Different migration rates, extinction rates and number of recolonizers.  
+	* Different selfing rates.  
+	* Different probobalities for homomorphic pairing.  
+	* Temporal fluctuations of carrying capacities by specifying the carrying capacities K1, K2 and the probabilities of transition from K1 to K2, and from K2 to K1.  
 
 
 # Compilation  
