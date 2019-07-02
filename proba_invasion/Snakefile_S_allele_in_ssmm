@@ -1,0 +1,55 @@
+nDemes = 1 
+#K0 = [10, 100, 1000, 10000]
+K0 = [10, 40]
+K2 = 10000
+pK1_to_K2 = 0 
+pK2_to_K1 =  0
+nGenerations = 30
+nGenerations_extinction = 999
+nNtrlLoci = 1
+mu_ntrl =  0
+nQuantiLoci = 1 
+mu_quanti = 0
+nBabies_max = 100
+prop_male_breeding = 1
+I = 0
+E = 0
+k = 10
+col_model = 0
+sexualSystem = 0 
+sexEffects = 1
+selfingRate = 0
+verbose = 30
+nIterations = 2000
+initial_situation = 1 
+first_introduced_allele = 0
+time_first_introduction = 1
+second_introduced_allele = 0
+time_second_introduction = 999 
+P_homo_pairing = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+#P_homo_pairing = [0.7, 0.8]
+male_choice = 0
+panmiixa_or_trisStylie = 1
+
+seed = 1234
+ITERATIONS = range(nIterations)
+
+rule targets:
+	input:
+		expand('N_{K}_P_{P}/output_{iteration}.txt', K=K0, iteration=ITERATIONS, P=P_homo_pairing)
+	shell:
+		"""
+		rm slurm*txt
+		"""
+
+rule simulations:
+	output:
+		'N_{K}_P_{P}/output_{iteration}.txt'
+	shell:
+		"""
+		# triStyli 1 1000 1000 0 0 30 1001 1 0 1 0 10 1 0 0 1 0 0 1 0 1 667 1 0 1 0 9999 0.1 0 1
+		cd N_{wildcards.K}_P_{wildcards.P}
+		#triStyli {nDemes} {wildcards.K} {K2} {pK1_to_K2} {pK2_to_K1} $(({wildcards.K}*6)) {nGenerations_extinction} {nNtrlLoci} {mu_ntrl} {nQuantiLoci} {mu_quanti} {nBabies_max} {prop_male_breeding} {I} {E} {k} {col_model} {sexualSystem} {sexEffects} {selfingRate} {verbose} {wildcards.iteration} {initial_situation} {first_introduced_allele} {time_first_introduction} {second_introduced_allele} {time_second_introduction} {wildcards.P} {male_choice} {panmiixa_or_trisStylie}
+		triStyli {nDemes} {wildcards.K} {K2} {pK1_to_K2} {pK2_to_K1} $(({wildcards.K}*6)) {nGenerations_extinction} {nNtrlLoci} {mu_ntrl} {nQuantiLoci} {mu_quanti} {nBabies_max} {prop_male_breeding} {I} {E} {k} {col_model} {sexualSystem} {sexEffects} {selfingRate} $(({wildcards.K}*6)) {wildcards.iteration} {initial_situation} {first_introduced_allele} {time_first_introduction} {second_introduced_allele} {time_second_introduction} {wildcards.P} {male_choice} {panmiixa_or_trisStylie}
+		"""
+
