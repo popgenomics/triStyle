@@ -1,0 +1,62 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+
+\title{Probability of invasion of a simple population by a dominant and a recessive allele controlling the floral morph}
+\author{Camille Roux and John Pannell }
+\date{June 2019}
+
+\begin{document}
+
+\maketitle
+
+
+\section{Appendix}
+In our study, the studied population is monomorphic $SS$ or $ss$ just before the introduction of the recessive $s$ or dominant $S$ mutation. We assume that this mutation only introduces an allele involved in a new floral form and preferential reproductive mating between individuals, but does not suppress the population's ability to produce seeds when it becomes monomorphic again. Opposite sex gametes from the same morph meet with a probability equal to their frequency in the population multiplied by $P$, the permissiveness such that all homomorphic crosses are rejected in the presence of two segregating morphs if $P=0$. Conversely, an ovule will never reject pollen from the same morph if $P=1$. Thus, $r_{\mathit{L}}$ defines the probability that an ovule produced by a long morph individual (with genotype $ss$) is fertilized by a pollen coming from a long morph individual (which may be itself or another individual of the same morph) and is quantified by $r_{\mathit{L}}$:\\
+$r_{\mathit{L}} = \frac{q1_{\mathit{L}}}{q1_{\mathit{L}} + q2_{\mathit{L}}}$ with $q1_{\mathit{L}} = P f_{\mathit{ss}}$ and $q2_{\mathit{L}} = 1-f_{\mathit{ss}}$\\
+$r_{\mathit{L}} = \frac{P f_{\mathit{ss}}}{1 + P f_{\mathit{ss}} - f_{\mathit{ss}}}$ (eq. 1)\\
+\newline
+Similarly, the probability that an ovule produced by a short morph individual is fertilized by a pollen from another short morph individuals is defined by $r_{\mathit{S}}$ such that:\\
+$r_{\mathit{S}} = \frac{q1_{\mathit{S}}}{q1_{\mathit{S}} + q2_{\mathit{S}}}$ with $q1_{\mathit{S}} = P {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}$ and $q2_{\mathit{S}} = 1 - f_{\mathit{SS}} - f_{\mathit{Ss}}$\\
+$r_{\mathit{S}} = \frac{P {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}}{P {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)} - f_{\mathit{SS}} - f_{\mathit{Ss}} + 1}$ (eq. 2)\\
+\newline
+
+Thus, $f'_{\mathit{SS}}$, $f'_{\mathit{SS}}$ and $f'_{\mathit{SS}}$, the expected genotype frequencies at the next generation, can be predicted by:\\ 
+$f'_{\mathit{SS}} = \frac{f_{\mathit{SS}}^{2} r_{S}}{f_{\mathit{SS}} + f_{\mathit{Ss}}} + \frac{f_{\mathit{SS}} f_{\mathit{Ss}} r_{S}}{f_{\mathit{SS}} + f_{\mathit{Ss}}} + \frac{f_{\mathit{Ss}}^{2} r_{S}}{4 \, {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}}$ (eq. 3)\\
+
+$f'_{\mathit{Ss}} = -\frac{f_{\mathit{SS}} f_{\mathit{ss}} {\left(r_{L} - 1\right)}}{f_{\mathit{SS}} + f_{\mathit{Ss}}} - \frac{f_{\mathit{Ss}} f_{\mathit{ss}} {\left(r_{L} - 1\right)}}{2 \, {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}} - f_{\mathit{SS}} {\left(r_{S} - 1\right)} - \frac{1}{2} \, f_{\mathit{Ss}} {\left(r_{S} - 1\right)} + \frac{f_{\mathit{SS}} f_{\mathit{Ss}} r_{S}}{f_{\mathit{SS}} + f_{\mathit{Ss}}} + \frac{f_{\mathit{Ss}}^{2} r_{S}}{2 \, {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}}$ (eq. 4)\\
+ 
+$f'_{\mathit{ss}} = -\frac{f_{\mathit{Ss}} f_{\mathit{ss}} {\left(r_{L} - 1\right)}}{2 \, {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}} + f_{\mathit{ss}} r_{L} - \frac{1}{2} \, f_{\mathit{Ss}} {\left(r_{S} - 1\right)} + \frac{f_{\mathit{Ss}}^{2} r_{S}}{4 \, {\left(f_{\mathit{SS}} + f_{\mathit{Ss}}\right)}}$ (eq. 5)\\
+
+\newline
+Two exceptions are addressed. First, if the 'ss' genotype is absent from the population, then we get:\\
+$f'_{\mathit{SS}} = \frac{1}{4} \, f_{\mathit{Ss}}^{2} + f_{\mathit{SS}}$ (eq. 6)\\
+$f'_{\mathit{Ss}} = f_{\mathit{SS}} f_{\mathit{Ss}} + \frac{1}{2} \, f_{\mathit{Ss}}^{2}$ (eq. 7)\\
+$f'_{\mathit{ss}} = \frac{1}{4} \, f_{\mathit{Ss}}^{2}$ (eq. 8)\\
+
+And if the population is composed only of individuals with 'ss' genotype:\\
+$f'_{\mathit{SS}} = 0$\\
+$f'_{\mathit{Ss}} = 0$\\
+$f'_{\mathit{ss}} = 1$\\
+
+
+We then recursively obtain the probabilities of loss, fixation and retention in the population of a new mutant $S$ or $s$ from equations (3), (4) and (5). More precisely, these equations are used as probabilities in a multinomial law to return the probability distribution of all possible genotypic compositions in a population of size $N$. The transition probabilities must be recalculated at each time step because it depends on the morph frequencies in the population.\\
+For instance, a population of size $N=3$ will have the following transition matrix $i \rightarrow j$ for $P=0$, where $i$ and $j$ are genotypic composition denoted by $nSS\_nSs\_nss$:\\
+
+\begin{table}[h!]
+\begin{tabular}{lllllllllll}
+        & 0\_0\_3 & 0\_1\_2 & 0\_2\_1 & 0\_3\_0 & 1\_0\_2 & 1\_1\_1 & 1\_2\_0 & 2\_0\_1 & 2\_1\_0 & 3\_0\_0 \\
+0\_0\_3 & 1       & 0       & 0       & 0       & 0       & 0       & 0       & 0       & 0       & 0       \\
+0\_1\_2 & 0.125   & 0.375   & 0.375   & 0.125   & 0       & 0       & 0       & 0       & 0       & 0       \\
+0\_2\_1 & 0.125   & 0.375   & 0.375   & 0.125   & 0       & 0       & 0       & 0       & 0       & 0       \\
+0\_3\_0 & 0.016   & 0.094   & 0.188   & 0.125   & 0.047   & 0.188   & 0.188   & 0.047   & 0.094   & 0.016   \\
+1\_0\_2 & 0       & 0       & 0       & 1       & 0       & 0       & 0       & 0       & 0       & 0       \\
+1\_1\_1 & 0.016   & 0.141   & 0.422   & 0.422   & 0       & 0       & 0       & 0       & 0       & 0       \\
+1\_2\_0 & 0.001   & 0.016   & 0.066   & 0.088   & 0.016   & 0.132   & 0.263   & 0.066   & 0.263   & 0.088   \\
+2\_0\_1 & 0       & 0       & 0       & 1       & 0       & 0       & 0       & 0       & 0       & 0       \\
+2\_1\_0 & 0       & 0.001   & 0.006   & 0.021   & 0.002   & 0.032   & 0.161   & 0.04    & 0.402   & 0.335   \\
+3\_0\_0 & 0       & 0       & 0       & 0       & 0       & 0       & 0       & 0       & 0       & 1      
+\end{tabular}
+\end{table}
+
+\end{document}
+
